@@ -4,6 +4,10 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-primary: #B23B23;
+  --color-primary-hover: #962D1A;
+  --color-warm-bg: #FFF9F5;
+  --color-warm-surface: #FDF2F0;
 }
 
 @layer base {
