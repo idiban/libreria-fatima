@@ -787,7 +787,7 @@ export default function App() {
                           Rol Actual (V2)
                           <div className="relative group inline-block">
                             <HelpCircle className="w-5 h-5 text-gray-300 cursor-help hover:text-[#B23B23] transition-colors p-0.5" />
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 p-4 bg-[#1A1A1A] text-white text-[11px] font-medium rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[9999] shadow-2xl border border-white/10 backdrop-blur-sm pointer-events-none">
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 p-4 bg-[#1A1A1A] text-white text-[11px] font-medium rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[9999] shadow-2xl border border-white/10 backdrop-blur-sm">
                               <div className="space-y-3">
                                 <p><span className="text-[#FF8A65] font-black uppercase tracking-tighter mr-1">Admin:</span> Gestiona usuarios, permisos y contraseñas. Acceso total al panel.</p>
                                 <p><span className="text-[#FF8A65] font-black uppercase tracking-tighter mr-1">Vendedor:</span> Registra ventas y administra el stock de libros.</p>
