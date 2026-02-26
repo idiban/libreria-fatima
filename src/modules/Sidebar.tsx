@@ -11,7 +11,7 @@ import {
   ChevronRight,
   UserCheck
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 
 interface SidebarProps {
@@ -21,6 +21,8 @@ interface SidebarProps {
   onLogout: () => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  isMobileOpen: boolean;
+  setIsMobileOpen: (open: boolean) => void;
 }
 
 export default function Sidebar({ 
@@ -29,7 +31,9 @@ export default function Sidebar({
   onViewChange, 
   onLogout,
   isCollapsed,
-  setIsCollapsed
+  setIsCollapsed,
+  isMobileOpen,
+  setIsMobileOpen
 }: SidebarProps) {
   const menuItems = [
     { id: 'catalog', label: 'Catálogo', icon: Library, roles: ['owner', 'admin', 'vendedor'] },
@@ -46,11 +50,27 @@ export default function Sidebar({
   );
 
   return (
-    <motion.aside 
-      initial={false}
-      animate={{ width: isCollapsed ? '80px' : '280px' }}
-      className="h-screen bg-white border-r border-[#FDF2F0] flex flex-col sticky top-0 z-50"
-    >
+    <>
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileOpen(false)}
+            className="fixed inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm z-[60] md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.aside 
+        initial={false}
+        animate={{ 
+          width: typeof window !== 'undefined' && window.innerWidth < 768 ? 280 : (isCollapsed ? 80 : 280),
+          x: typeof window !== 'undefined' && window.innerWidth < 768 ? (isMobileOpen ? 0 : -280) : 0
+        }}
+        className="fixed md:sticky top-0 h-screen bg-white border-r border-[#FDF2F0] flex flex-col z-[70] shadow-2xl md:shadow-none"
+      >
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
         <div className="bg-[#B23B23] p-2 rounded-xl shrink-0">
@@ -73,7 +93,10 @@ export default function Sidebar({
         {filteredItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => onViewChange(item.id)}
+            onClick={() => {
+              onViewChange(item.id);
+              setIsMobileOpen(false);
+            }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all relative group ${
               activeView === item.id 
                 ? 'bg-[#B23B23] text-white shadow-lg shadow-[#B23B23]/20' 
@@ -103,8 +126,8 @@ export default function Sidebar({
       <div className="p-4 border-t border-[#FDF2F0] space-y-2">
         {currentUser && !isCollapsed && (
           <div className="px-4 py-3 bg-[#FFF9F5] rounded-2xl mb-2">
-            <p className="text-xs font-bold text-[#B23B23] uppercase tracking-widest mb-1">{currentUser.role}</p>
-            <p className="text-sm font-bold truncate">{currentUser.username}</p>
+            <p className="text-xs font-bold text-[#B23B23] uppercase tracking-widest mb-1">{currentUser?.role || 'N/A'}</p>
+            <p className="text-sm font-bold truncate">{currentUser?.username || 'Usuario Desconocido'}</p>
           </div>
         )}
         
@@ -125,5 +148,6 @@ export default function Sidebar({
         </button>
       </div>
     </motion.aside>
+    </>
   );
 }

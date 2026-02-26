@@ -177,22 +177,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
               <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[#FDF2F0]">
                 <th className="px-8 py-6">Usuario</th>
                 <th className="px-8 py-6">Email</th>
-                <th className="px-8 py-6">
-                  <div className="flex items-center gap-2">
-                    Rol
-                    <div className="relative group">
-                      <HelpCircle className="w-4 h-4 text-gray-300 cursor-help hover:text-[#B23B23] transition-colors" />
-                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-64 p-4 bg-[#2D1A1A] text-white text-[10px] font-medium rounded-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[100] shadow-2xl border border-white/10 backdrop-blur-sm">
-                        <div className="space-y-2">
-                          <p><span className="text-orange-400 font-black uppercase">Owner:</span> Acceso total, propietario del sistema.</p>
-                          <p><span className="text-orange-400 font-black uppercase">Admin:</span> Gestiona usuarios y stock. Acceso a estadísticas.</p>
-                          <p><span className="text-orange-400 font-black uppercase">Vendedor:</span> Registra ventas y ve el catálogo.</p>
-                        </div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-[#2D1A1A] rotate-45 -mt-1.5" />
-                      </div>
-                    </div>
-                  </div>
-                </th>
+                <th className="px-8 py-6">Rol</th>
                 <th className="px-8 py-6 text-right">Acciones</th>
               </tr>
             </thead>

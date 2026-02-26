@@ -67,11 +67,15 @@ export default function SalesHistory() {
     }
   };
 
-  const filteredSales = sales.filter(sale => 
-    sale.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.items.some(i => i.title.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredSales = sales.filter(sale => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const clientName = sale.clientName || '';
+    const sellerName = sale.sellerName || '';
+
+    return clientName.toLowerCase().includes(lowerCaseSearchTerm) ||
+           sellerName.toLowerCase().includes(lowerCaseSearchTerm) ||
+           sale.items.some(i => (i.title || '').toLowerCase().includes(lowerCaseSearchTerm));
+  });
 
   return (
     <div className="space-y-8">
@@ -115,7 +119,7 @@ export default function SalesHistory() {
                     <td colSpan={8} className="px-8 py-6"><div className="h-4 bg-gray-100 rounded-full w-full" /></td>
                   </tr>
                 ))
-              ) : filteredSales.map((sale) => (
+              ) : filteredSales && filteredSales.map((sale) => (
                 <tr key={sale.id} className="hover:bg-[#FFF9F5] transition-colors group">
                   <td className="px-8 py-6 text-xs text-gray-500 font-bold">{formatDate(sale.timestamp)}</td>
                   <td className="px-8 py-6">
@@ -132,7 +136,7 @@ export default function SalesHistory() {
                   </td>
                   <td className="px-8 py-6">
                     <div className="text-xs text-gray-500 font-medium max-w-xs truncate">
-                      {sale.items.map(i => `${i.quantity}x ${i.title}`).join(', ')}
+                      {sale.items && sale.items.map(i => `${i.quantity}x ${i.title}`).join(', ')}
                     </div>
                   </td>
                   <td className="px-8 py-6">
@@ -147,7 +151,7 @@ export default function SalesHistory() {
                         />
                       </div>
                     ) : (
-                      <span className="font-black text-[#2D1A1A]">${formatPrice(sale.total)}</span>
+                      <span className="font-black text-[#2D1A1A]">${formatPrice(sale.total ?? 0)}</span>
                     )}
                   </td>
                   <td className="px-8 py-6">
@@ -162,18 +166,18 @@ export default function SalesHistory() {
                         />
                       </div>
                     ) : (
-                      <span className="font-black text-emerald-600">${formatPrice(sale.amountPaid)}</span>
+                      <span className="font-black text-emerald-600">${formatPrice(sale.amountPaid ?? 0)}</span>
                     )}
                   </td>
                   <td className="px-8 py-6">
                     <span className={`font-black ${sale.debt > 0 ? 'text-red-500' : 'text-gray-300'}`}>
-                      ${formatPrice(sale.total - sale.amountPaid)}
+                      ${formatPrice((sale.total ?? 0) - (sale.amountPaid ?? 0))}
                     </span>
                   </td>
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-2">
                       <div className="w-5 h-5 rounded-full bg-[#B23B23] flex items-center justify-center text-white text-[8px] font-bold">
-                        {sale.sellerName[0].toUpperCase()}
+                        {sale.sellerName ? sale.sellerName[0].toUpperCase() : '?'}
                       </div>
                       <span className="text-xs font-bold text-gray-500">{sale.sellerName}</span>
                     </div>

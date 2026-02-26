@@ -113,7 +113,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                             className="w-full px-4 py-3 text-left hover:bg-[#FFF9F5] transition-colors flex items-center gap-3"
                           >
                             <div className="w-8 h-8 rounded-full bg-[#B23B23] flex items-center justify-center text-white text-xs font-bold">
-                              {s.username[0].toUpperCase()}
+                              {s.username ? s.username[0].toUpperCase() : '?'}
                             </div>
                             <span className="font-bold text-sm">{s.username}</span>
                           </button>

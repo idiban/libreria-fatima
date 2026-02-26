@@ -262,12 +262,16 @@ async function startServer() {
       const { q } = req.query;
       if (!q || typeof q !== "string") return res.json([]);
       const query = q.toLowerCase();
-      const snapshot = await firestore.collection("clientes")
-        .where("name_lowercase", ">=", query)
-        .where("name_lowercase", "<=", query + "\uf8ff")
-        .limit(5)
-        .get();
-      const suggestions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Fetch all clients and filter in memory for substring match
+      // Note: For large datasets, use a dedicated search service (Algolia, ElasticSearch)
+      const snapshot = await firestore.collection("clientes").get();
+      
+      const suggestions = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as any))
+        .filter(client => (client.name_lowercase || '').includes(query))
+        .slice(0, 5);
+        
       res.json(suggestions);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
@@ -340,17 +344,20 @@ async function startServer() {
       if (!q || typeof q !== "string") return res.json([]);
       
       const query = normalizeUsername(q);
-      const snapshot = await firestore.collection("usuarios")
-        .where("username_lowercase", ">=", query)
-        .where("username_lowercase", "<=", query + "\uf8ff")
-        .limit(5)
-        .get();
+      
+      // Fetch all users and filter in memory for substring match
+      const snapshot = await firestore.collection("usuarios").get();
         
-      const suggestions = snapshot.docs.map(doc => ({
-        id: doc.id,
-        username: doc.data().username,
-        email: doc.data().email
-      }));
+      const suggestions = snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          username: doc.data().username,
+          username_lowercase: doc.data().username_lowercase,
+          email: doc.data().email
+        } as any))
+        .filter(user => (user.username_lowercase || '').includes(query))
+        .slice(0, 5);
+        
       res.json(suggestions);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });

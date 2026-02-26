@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile } from './types';
+import { Menu, Library } from 'lucide-react';
 
 // Modules
 import Sidebar from './modules/Sidebar';
@@ -22,6 +23,7 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeView, setActiveView] = useState('catalog');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Auth State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -133,7 +135,7 @@ export default function App() {
       case 'stock':
         return <StockManager books={books} onUpdateStock={handleUpdateStock} />;
       case 'users':
-        return <UserAdmin currentUser={currentUser!} allUsers={allUsers} onFetchUsers={fetchUsers} />;
+        return currentUser ? <UserAdmin currentUser={currentUser} allUsers={allUsers} onFetchUsers={fetchUsers} /> : null;
       case 'stats':
         return <StatsDashboard />;
       case 'logs':
@@ -149,20 +151,38 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FFF9F5] flex">
-      <Sidebar 
-        currentUser={currentUser}
-        activeView={activeView}
-        onViewChange={(view) => {
-          setActiveView(view);
-          setSelectedBook(null);
-        }}
-        onLogout={handleLogout}
-        isCollapsed={isSidebarCollapsed}
-        setIsCollapsed={setIsSidebarCollapsed}
-      />
+      {currentUser && (
+        <Sidebar 
+          currentUser={currentUser}
+          activeView={activeView}
+          onViewChange={(view) => {
+            setActiveView(view);
+            setSelectedBook(null);
+          }}
+          onLogout={handleLogout}
+          isCollapsed={isSidebarCollapsed}
+          setIsCollapsed={setIsSidebarCollapsed}
+          isMobileOpen={isMobileMenuOpen}
+          setIsMobileOpen={setIsMobileMenuOpen}
+        />
+      )}
 
-      <main className="flex-1 p-6 lg:p-10 overflow-y-auto h-screen">
-        <AnimatePresence mode="wait">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        {currentUser && (
+          <div className="md:hidden bg-white border-b border-[#FDF2F0] p-4 flex items-center justify-between z-40 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="bg-[#B23B23] p-1.5 rounded-lg">
+                <Library className="w-5 h-5 text-white" />
+              </div>
+              <h1 className="font-bold text-lg text-[#2D1A1A]">Librería Fátima</h1>
+            </div>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+        )}
+        <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto">
+          <AnimatePresence mode="wait">
           <motion.div
             key={activeView + (selectedBook?.id || '')}
             initial={{ opacity: 0, y: 10 }}
@@ -174,7 +194,7 @@ export default function App() {
               <div className="flex justify-end mb-8">
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="bg-[#B23B23] text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-[#B23B23]/20 hover:scale-105 transition-all"
+                  className="bg-[#B23B23] text-white px-4 py-2 text-sm md:px-6 md:py-3 md:text-base rounded-2xl font-black shadow-lg shadow-[#B23B23]/20 hover:scale-105 transition-all"
                 >
                   Ingresar al Sistema
                 </button>
@@ -183,6 +203,7 @@ export default function App() {
             {renderView()}
           </motion.div>
         </AnimatePresence>
+        </div>
       </main>
 
       {/* Modals */}

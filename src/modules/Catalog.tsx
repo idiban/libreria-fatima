@@ -30,10 +30,13 @@ export default function Catalog({
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
-  const filteredBooks = books.filter(book => 
-    book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    book.author.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredBooks = books.filter(book => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const title = book.title || '';
+    const author = book.author || '';
+    return title.toLowerCase().includes(lowerCaseSearchTerm) ||
+           author.toLowerCase().includes(lowerCaseSearchTerm);
+  });
 
   return (
     <div className="space-y-8">
