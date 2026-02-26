@@ -116,6 +116,22 @@ async function startServer() {
       if (updates.contraportada_url !== undefined) firestoreUpdates.contraportada_url = updates.contraportada_url;
 
       await firestore.collection("libros").doc(id).update(firestoreUpdates);
+      
+      // Log stock change if stock was updated
+      if (updates.stock !== undefined) {
+        const bookDoc = await firestore.collection("libros").doc(id).get();
+        const bookData = bookDoc.data();
+        const userCookie = req.cookies.user;
+        if (userCookie) {
+          const user = JSON.parse(userCookie);
+          await logActivity(user.id, user.username, "STOCK_UPDATE", {
+            bookId: id,
+            bookTitle: bookData?.titulo,
+            newStock: updates.stock
+          });
+        }
+      }
+
       const updatedDoc = await firestore.collection("libros").doc(id).get();
       const data = updatedDoc.data();
       res.json({ id: updatedDoc.id, title: data?.titulo, author: data?.autor, price: data?.precio, stock: data?.stock, cover_url: data?.portada_url });
@@ -143,31 +159,144 @@ async function startServer() {
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
     try {
-      const { bookId, quantity, sellerId } = req.body;
-      const bookRef = firestore.collection("libros").doc(bookId);
+      const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
       
       await firestore.runTransaction(async (transaction) => {
-        const bookDoc = await transaction.get(bookRef);
-        if (!bookDoc.exists) throw new Error("El libro no existe");
-        
-        const currentStock = bookDoc.data()?.stock || 0;
-        if (currentStock < quantity) throw new Error("Stock insuficiente");
-        
-        transaction.update(bookRef, { stock: currentStock - quantity });
-        
+        // 1. Update Stocks
+        for (const item of items) {
+          const bookRef = firestore.collection("libros").doc(item.bookId);
+          const bookDoc = await transaction.get(bookRef);
+          if (!bookDoc.exists) throw new Error(`El libro ${item.title} no existe`);
+          
+          const currentStock = bookDoc.data()?.stock || 0;
+          if (currentStock < item.quantity) throw new Error(`Stock insuficiente para ${item.title}`);
+          
+          transaction.update(bookRef, { stock: currentStock - item.quantity });
+        }
+
+        // 2. Handle Client
+        let finalClientId = clientId;
+        const debt = total - amountPaid;
+
+        if (!finalClientId) {
+          // Create new client
+          const clientRef = firestore.collection("clientes").doc();
+          transaction.set(clientRef, {
+            name: clientName,
+            name_lowercase: clientName.toLowerCase(),
+            totalDebt: debt,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+          });
+          finalClientId = clientRef.id;
+        } else {
+          // Update existing client debt
+          const clientRef = firestore.collection("clientes").doc(finalClientId);
+          const clientDoc = await transaction.get(clientRef);
+          const currentDebt = clientDoc.data()?.totalDebt || 0;
+          transaction.update(clientRef, { 
+            totalDebt: currentDebt + debt,
+            name: clientName // Update name in case it was refined
+          });
+        }
+
+        // 3. Record Sale
         const saleRef = firestore.collection("ventas").doc();
-        transaction.set(saleRef, {
-          bookId,
-          quantity,
+        const saleData = {
+          items,
+          clientId: finalClientId,
+          clientName,
+          total,
+          amountPaid,
+          debt,
           sellerId,
-          timestamp: admin.firestore.FieldValue.serverTimestamp(),
-          totalPrice: (bookDoc.data()?.precio || 0) * quantity
+          sellerName,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        };
+        transaction.set(saleRef, saleData);
+
+        // 4. Log Activity
+        await logActivity(sellerId, sellerName, "SALE", {
+          saleId: saleRef.id,
+          clientName,
+          total,
+          itemsCount: items.length
         });
       });
       
       res.json({ success: true });
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.get("/api/sales", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const snapshot = await firestore.collection("ventas").orderBy("timestamp", "desc").get();
+      const sales = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: doc.data().timestamp?.toDate() }));
+      res.json(sales);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.patch("/api/sales/:id", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      await firestore.collection("ventas").doc(id).update(updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // API Routes - Clients
+  app.get("/api/clients/suggest", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const { q } = req.query;
+      if (!q || typeof q !== "string") return res.json([]);
+      const query = q.toLowerCase();
+      const snapshot = await firestore.collection("clientes")
+        .where("name_lowercase", ">=", query)
+        .where("name_lowercase", "<=", query + "\uf8ff")
+        .limit(5)
+        .get();
+      const suggestions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(suggestions);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.get("/api/clients", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const snapshot = await firestore.collection("clientes").get();
+      const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      res.json(clients);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.patch("/api/clients/:id", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
+      await firestore.collection("clientes").doc(id).update(updates);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 
@@ -183,6 +312,22 @@ async function startServer() {
       .toLowerCase()
       .replace(/\s+/g, '.');
     return `${cleanName}@libreriafatima.cl`;
+  };
+
+  const logActivity = async (userId: string, username: string, action: string, details: any = {}) => {
+    const firestore = getFirestore();
+    if (!firestore) return;
+    try {
+      await firestore.collection("logs").add({
+        userId,
+        username,
+        action,
+        details,
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (e) {
+      console.error("Error logging activity:", e);
+    }
   };
 
   // API Routes - Users & Auth
@@ -264,6 +409,8 @@ async function startServer() {
         await firestore.collection("usuarios").doc(user.id).update({ role: "owner" });
       }
 
+      await logActivity(user.id, user.username, "LOGIN", { email: user.email });
+
       res.cookie("user", JSON.stringify(user), { httpOnly: true, sameSite: 'none', secure: true });
       res.json(user);
     } catch (error) {
@@ -271,7 +418,14 @@ async function startServer() {
     }
   });
 
-  app.post("/api/logout", (req, res) => {
+  app.post("/api/logout", async (req, res) => {
+    const userCookie = req.cookies.user;
+    if (userCookie) {
+      try {
+        const user = JSON.parse(userCookie);
+        await logActivity(user.id, user.username, "LOGOUT");
+      } catch (e) {}
+    }
     res.clearCookie("user");
     res.json({ success: true });
   });
@@ -351,6 +505,17 @@ async function startServer() {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
+      // Log user creation
+      const userCookie = req.cookies.user;
+      if (userCookie) {
+        const adminUser = JSON.parse(userCookie);
+        await logActivity(adminUser.id, adminUser.username, "USER_CREATE", {
+          newUserId: authUser.uid,
+          newUsername: username,
+          role: role || 'vendedor'
+        });
+      }
+
       res.status(201).json({ id: authUser.uid, username, role, email });
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
@@ -376,6 +541,17 @@ async function startServer() {
       }
 
       await firestore.collection("usuarios").doc(id).delete();
+
+      // Log user deletion
+      const userCookie = req.cookies.user;
+      if (userCookie) {
+        const adminUser = JSON.parse(userCookie);
+        await logActivity(adminUser.id, adminUser.username, "USER_DELETE", {
+          deletedUserId: id,
+          deletedUsername: userDoc.data()?.username
+        });
+      }
+
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
@@ -438,6 +614,16 @@ async function startServer() {
 
       await firestore.collection("usuarios").doc(id).update(updates);
       
+      // Log user update
+      const userCookie = req.cookies.user;
+      if (userCookie) {
+        const adminUser = JSON.parse(userCookie);
+        await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", {
+          updatedUserId: id,
+          updates
+        });
+      }
+
       if (username) {
         try {
           await admin.auth().updateUser(id, { displayName: username });
