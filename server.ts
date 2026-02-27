@@ -197,12 +197,15 @@ async function startServer() {
       const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
       
       await firestore.runTransaction(async (transaction) => {
-        // 1. READS
-        const bookRefs = items.map((item: any) => firestore.collection("libros").doc(item.bookId));
-        const bookDocs = await transaction.getAll(...bookRefs);
+        // Separar libros reales de artículos custom para el stock
+        const bookItems = items.filter((item: any) => !item.bookId.startsWith('custom_'));
+
+        // 1. READS solo para libros reales
+        const bookRefs = bookItems.map((item: any) => firestore.collection("libros").doc(item.bookId));
+        const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
 
         for (let i = 0; i < bookDocs.length; i++) {
-          if (!bookDocs[i].exists) throw new Error(`El libro ${items[i].title} no existe`);
+          if (!bookDocs[i].exists) throw new Error(`El libro ${bookItems[i].title} no existe`);
         }
 
         let finalClientId = clientId;
@@ -217,10 +220,10 @@ async function startServer() {
         
         const clientDoc = clientId ? await transaction.get(clientRef) : null;
 
-        // 2. WRITES
+        // 2. WRITES (Actualizar stock solo de libros reales)
         for (let i = 0; i < bookDocs.length; i++) {
           const currentStock = bookDocs[i].data()?.stock || 0;
-          transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - items[i].quantity) });
+          transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - bookItems[i].quantity) });
         }
 
         const debtChange = Number(total) - Number(amountPaid);
@@ -242,7 +245,7 @@ async function startServer() {
         
         const saleRef = firestore.collection("ventas").doc();
         const saleData = {
-          items,
+          items, // Se guardan TODOS los items (libros y manuales)
           clientId: finalClientId,
           clientName,
           total: Number(total),
@@ -254,7 +257,6 @@ async function startServer() {
         transaction.set(saleRef, saleData);
       });
 
-      // Log Activity outside transaction to avoid retries duplicating logs
       await logActivity(sellerId, sellerName, "SALE", {
         clientName,
         total: Number(total),
@@ -293,8 +295,9 @@ async function startServer() {
         if (!saleDoc.exists) throw new Error("Venta no encontrada");
         const oldSaleData = saleDoc.data()!;
         
-        const oldBookIds = (oldSaleData.items || []).map((i: any) => i.bookId);
-        const newBookIds = (items || []).map((i: any) => i.bookId);
+        // Filtrar IDs para ajustar stock (ignorar customs)
+        const oldBookIds = (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_')).map((i: any) => i.bookId);
+        const newBookIds = (items || []).filter((i: any) => !i.bookId.startsWith('custom_')).map((i: any) => i.bookId);
         const allBookIds = Array.from(new Set([...oldBookIds, ...newBookIds]));
         
         const bookRefs = allBookIds.map(bookId => firestore.collection("libros").doc(bookId));
@@ -328,10 +331,10 @@ async function startServer() {
         }
         
         const stockChanges = new Map<string, number>();
-        for (const oldItem of (oldSaleData.items || [])) {
+        for (const oldItem of (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
           stockChanges.set(oldItem.bookId, (stockChanges.get(oldItem.bookId) || 0) + oldItem.quantity);
         }
-        for (const newItem of (items || [])) {
+        for (const newItem of (items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
           stockChanges.set(newItem.bookId, (stockChanges.get(newItem.bookId) || 0) - newItem.quantity);
         }
         
@@ -380,7 +383,7 @@ async function startServer() {
         }
         
         transaction.update(saleRef, {
-          items,
+          items, // Se guardan TODOS los items en la venta actualizada
           clientId: finalClientId,
           clientName,
           total: Number(total),
@@ -409,7 +412,8 @@ async function startServer() {
         if (!saleDoc.exists) throw new Error("Venta no encontrada");
         const saleData = saleDoc.data()!;
         
-        const bookRefs = (saleData.items || []).map((item: any) => firestore.collection("libros").doc(item.bookId));
+        const bookItems = (saleData.items || []).filter((item: any) => !item.bookId.startsWith('custom_'));
+        const bookRefs = bookItems.map((item: any) => firestore.collection("libros").doc(item.bookId));
         const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
         
         let clientRef = null;
@@ -419,10 +423,11 @@ async function startServer() {
           clientDoc = await transaction.get(clientRef);
         }
         
+        // Revertir stock solo para libros
         for (let i = 0; i < bookDocs.length; i++) {
           if (bookDocs[i].exists) {
             const currentStock = bookDocs[i].data()?.stock || 0;
-            const item = saleData.items.find((item: any) => item.bookId === bookDocs[i].id);
+            const item = bookItems.find((item: any) => item.bookId === bookDocs[i].id);
             if (item) {
               transaction.update(bookRefs[i], { stock: currentStock + item.quantity });
             }
@@ -451,18 +456,26 @@ async function startServer() {
         const { clientId } = req.params;
         const snapshot = await firestore.collection("ventas")
             .where("clientId", "==", clientId)
-            .orderBy("timestamp", "desc")
             .get();
-        const sales = snapshot.docs.map(doc => ({ 
+        
+        let sales = snapshot.docs.map(doc => ({ 
             id: doc.id, 
             ...doc.data(), 
             date: doc.data().timestamp?.toDate()
         }));
+
+        sales = sales.sort((a, b) => {
+            const timeA = a.date ? new Date(a.date).getTime() : 0;
+            const timeB = b.date ? new Date(b.date).getTime() : 0;
+            return timeB - timeA;
+        });
+
         res.json(sales);
     } catch (error) {
+        console.error("Error en /api/sales/client/:clientId:", error);
         res.status(500).json({ error: (error as Error).message });
     }
-});
+  });
 
   app.get("/api/debts/client/:clientId", async (req, res) => {
     const firestore = getFirestore();
@@ -473,7 +486,6 @@ async function startServer() {
       const clientDoc = await firestore.collection("clientes").doc(clientId).get();
       const totalDebt = clientDoc.exists ? (clientDoc.data()?.totalDebt || 0) : 0;
 
-      // ELIMINADO: .orderBy("timestamp", "desc") para evitar error de índice en Firebase
       const salesSnapshot = await firestore.collection("ventas")
         .where("clientId", "==", clientId)
         .get();
@@ -489,7 +501,6 @@ async function startServer() {
         };
       }).filter(sale => sale.amount > 0);
 
-      // ELIMINADO: .orderBy("timestamp", "desc")
       const paymentsSnapshot = await firestore.collection("pagos")
         .where("clientId", "==", clientId)
         .get();
@@ -500,11 +511,10 @@ async function startServer() {
         timestamp: doc.data().timestamp?.toDate()
       }));
 
-      // Este sort en memoria ordena todo cronológicamente, haciendo innecesario el orderBy de Firebase
       const history = [...sales, ...payments].sort((a, b) => {
         const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
         const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeB - timeA; // Descendente (más recientes primero)
+        return timeB - timeA;
       });
 
       res.json({ totalDebt, history });
@@ -521,10 +531,8 @@ async function startServer() {
     try {
       const { id } = req.params;
       
-      // Fetch all sales for this client
       const salesSnapshot = await firestore.collection("ventas")
         .where("clientId", "==", id)
-        .orderBy("timestamp", "desc")
         .get();
       
       const sales = salesSnapshot.docs.map(doc => ({
@@ -534,10 +542,8 @@ async function startServer() {
         timestamp: doc.data().timestamp?.toDate()
       }));
 
-      // Fetch payments from 'pagos' collection
       const paymentsSnapshot = await firestore.collection("pagos")
         .where("clientId", "==", id)
-        .orderBy("timestamp", "desc")
         .get();
 
       const payments = paymentsSnapshot.docs.map(doc => ({
@@ -546,7 +552,6 @@ async function startServer() {
         timestamp: doc.data().timestamp?.toDate()
       }));
 
-      // Merge and sort by timestamp
       const history = [...sales, ...payments].sort((a, b) => {
         const timeA = a.timestamp?.getTime() || 0;
         const timeB = b.timestamp?.getTime() || 0;
@@ -555,6 +560,7 @@ async function startServer() {
 
       res.json({ history });
     } catch (error) {
+      console.error("Error en /api/clients/:id/history:", error);
       res.status(500).json({ error: (error as Error).message });
     }
   });
@@ -567,8 +573,6 @@ async function startServer() {
       if (!q || typeof q !== "string") return res.json([]);
       const query = normalizeUsername(q);
       
-      // Fetch all clients and filter in memory for substring match
-      // Note: For large datasets, use a dedicated search service (Algolia, ElasticSearch)
       const snapshot = await firestore.collection("clientes").get();
       
       const suggestions = snapshot.docs
@@ -655,10 +659,6 @@ async function startServer() {
             const newDebt = currentDebt - amount;
             transaction.update(clientRef, { totalDebt: newDebt });
 
-            // No longer creating separate 'pagos' documents to reduce redundancy
-
-            // Actualizar la colección 'deudas'
-            // Create a payment document in 'pagos' collection
             const paymentRef = firestore.collection("pagos").doc();
             transaction.set(paymentRef, {
               clientId: id,
@@ -685,7 +685,7 @@ async function startServer() {
     }
 });
 
-  // Helper to normalize usernames (lowercase and remove accents)
+  // Helper to normalize usernames
   const normalizeUsername = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
@@ -726,7 +726,6 @@ async function startServer() {
       
       const query = normalizeUsername(q);
       
-      // Fetch all users and filter in memory for substring match
       const snapshot = await firestore.collection("usuarios").get();
         
       const suggestions = snapshot.docs
@@ -766,7 +765,6 @@ async function startServer() {
 
       if (!email) return res.status(400).json({ error: "El usuario no tiene un email asociado" });
 
-      // Verify credentials using Firebase Auth REST API
       const apiKey = process.env.FIREBASE_WEB_API_KEY;
       if (!apiKey) return res.status(500).json({ error: "FIREBASE_WEB_API_KEY no configurada" });
 
@@ -791,7 +789,6 @@ async function startServer() {
 
       let user: any = { id: userDoc.id, ...userData };
 
-      // Auto-promote Ignacio Dibán to owner if not already
       if (normalizedInput === "ignacio diban" && user.role !== "owner") {
         user.role = "owner";
         await firestore.collection("usuarios").doc(user.id).update({ role: "owner" });
@@ -871,7 +868,6 @@ async function startServer() {
       const email = userDoc.data()?.email;
       if (!email) return res.status(400).json({ error: "Usuario sin email" });
 
-      // Update password in Firebase Auth
       const authUser = await admin.auth().getUserByEmail(email);
       await admin.auth().updateUser(authUser.uid, { password });
 
@@ -890,21 +886,18 @@ async function startServer() {
       const normalizedUsername = normalizeUsername(username);
       const email = generateEmail(username);
       
-      // Check if user exists in Firestore
       const existing = await firestore.collection("usuarios")
         .where("username_lowercase", "==", normalizedUsername)
         .get();
       
       if (!existing.empty) return res.status(400).json({ error: "El usuario ya existe" });
 
-      // Create user in Firebase Auth
       const authUser = await admin.auth().createUser({
         email,
         password,
         displayName: username
       });
 
-      // Create user in Firestore
       const docRef = await firestore.collection("usuarios").doc(authUser.uid).set({
         username,
         username_lowercase: normalizedUsername,
@@ -913,7 +906,6 @@ async function startServer() {
         createdAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Log user creation
       const userCookie = req.cookies.user;
       if (userCookie) {
         const adminUser = JSON.parse(userCookie);
@@ -941,7 +933,6 @@ async function startServer() {
       if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
       if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se puede eliminar al Propietario (Owner)" });
 
-      // Delete from Firebase Auth
       try {
         await admin.auth().deleteUser(id);
       } catch (e) {
@@ -950,7 +941,6 @@ async function startServer() {
 
       await firestore.collection("usuarios").doc(id).delete();
 
-      // Log user deletion
       const userCookie = req.cookies.user;
       if (userCookie) {
         const adminUser = JSON.parse(userCookie);
@@ -977,7 +967,6 @@ async function startServer() {
       const currentUser = JSON.parse(userCookie);
       const { newPassword } = req.body;
 
-      // Update in Firebase Auth
       await admin.auth().updateUser(currentUser.id, { password: newPassword });
 
       res.json({ success: true });
@@ -1000,7 +989,6 @@ async function startServer() {
       const updates: any = {};
       if (username) {
         const normalizedUsername = normalizeUsername(username);
-        // Check if username is already taken by another user
         const existing = await firestore.collection("usuarios")
           .where("username_lowercase", "==", normalizedUsername)
           .get();
@@ -1013,7 +1001,6 @@ async function startServer() {
         updates.username_lowercase = normalizedUsername;
       }
       if (role) {
-        // Don't allow changing role of owner if it's the last owner (though usually only one)
         if (userDoc.data()?.role === 'owner' && role !== 'owner') {
            return res.status(403).json({ error: "No se puede cambiar el rol del Propietario" });
         }
@@ -1022,7 +1009,6 @@ async function startServer() {
 
       await firestore.collection("usuarios").doc(id).update(updates);
       
-      // Log user update
       const userCookie = req.cookies.user;
       if (userCookie) {
         const adminUser = JSON.parse(userCookie);
@@ -1111,7 +1097,6 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
   app.get("/api/logs", async (req, res) => {
     const firestore = getFirestore();
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -1150,7 +1135,6 @@ async function startServer() {
       const totalRevenue = sales.reduce((acc, sale) => acc + (sale.total || 0), 0);
       const totalSales = sales.length;
       
-      // Sales by user
       const salesByUser: Record<string, { count: number, total: number, username: string }> = {};
       sales.forEach(sale => {
         if (!salesByUser[sale.userId]) {
@@ -1161,7 +1145,6 @@ async function startServer() {
         salesByUser[sale.userId].total += (sale.total || 0);
       });
 
-      // Top selling books
       const salesByBook: Record<string, { count: number, title: string }> = {};
       sales.forEach(sale => {
         if (!salesByBook[sale.bookId]) {

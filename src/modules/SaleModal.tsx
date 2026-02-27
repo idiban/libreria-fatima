@@ -42,6 +42,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const [isClientSelected, setIsClientSelected] = useState(false);
 
+  // Estados para el nuevo artículo manual
+  const [showCustomItemForm, setShowCustomItemForm] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState('');
+
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
@@ -56,7 +61,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  // NUEVO REF: Para controlar la condición de carrera en la búsqueda
   const latestSearch = useRef<string>('');
 
   useEffect(() => {
@@ -88,23 +92,20 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const handleBookSearch = async (term: string) => {
     setBookSearchTerm(term);
-    latestSearch.current = term; // Actualizamos cuál es la búsqueda más reciente
+    latestSearch.current = term; 
 
     if (term.length > 2) {
       setIsSearching(true);
       try {
-        // AI-powered search (not labeled as AI)
         const ai = new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY as string) });
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
           contents: [{ text: `Basado en el término de búsqueda "${term}", identifica qué libros del catálogo podrían coincidir. Responde solo con una lista de IDs de libros si los conoces, o palabras clave para filtrar.` }],
         });
         
-        // For now, simple fetch but we can use AI to refine the query
         const res = await fetch('/api/books');
         const contentType = res.headers.get('content-type');
         
-        // SOLUCIÓN: Si mientras la IA/fetch cargaba, el usuario escribió algo más, abortamos y no mostramos resultados viejos.
         if (latestSearch.current !== term) return;
 
         if (contentType && contentType.indexOf('application/json') !== -1) {
@@ -124,7 +125,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           setBookSuggestions([]);
         }
       } catch (e) {} finally {
-        // Solo quitamos el estado de "cargando" si esta sigue siendo la búsqueda actual
         if (latestSearch.current === term) {
           setIsSearching(false);
         }
@@ -145,6 +145,29 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setBookSearchTerm('');
     setBookSuggestions([]);
     setIsSearching(false);
+  };
+
+  // Función para agregar el artículo manual
+  const handleAddCustomItem = () => {
+    if (!customItemName.trim() || !customItemPrice) return;
+    const priceNum = Number(customItemPrice.replace(/\D/g, ''));
+    if (priceNum <= 0) return;
+
+    const newItem: any = {
+      bookId: `custom_${Date.now()}`, // ID único para que React y el carrito lo diferencien
+      title: customItemName.trim(),
+      price: priceNum,
+      quantity: 1,
+      stock: 99999, // Stock alto para que nunca muestre "Sin Stock"
+      cover_url: '' 
+    };
+
+    setItems(prev => [...prev, newItem]);
+    
+    // Limpiamos y cerramos el formulario
+    setCustomItemName('');
+    setCustomItemPrice('');
+    setShowCustomItemForm(false);
   };
 
   const updateQuantity = (bookId: string, delta: number) => {
@@ -300,8 +323,8 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                           {item.cover_url ? (
                             <img src={item.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-200">
-                              <span className="text-[8px] font-bold">Sin Portada</span>
+                            <div className="w-full h-full flex items-center justify-center text-gray-200 bg-[var(--color-warm-bg)]">
+                              <span className="text-[8px] font-bold text-center px-1">Artículo</span>
                             </div>
                           )}
                         </div>
@@ -388,6 +411,62 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                           <span className="font-black text-[var(--color-primary)] text-xs shrink-0">${formatPrice(b.price)}</span>
                         </button>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* NUEVO: Agregar artículo manual */}
+                <div className="mt-4">
+                  {!showCustomItemForm ? (
+                    <button
+                      onClick={() => setShowCustomItemForm(true)}
+                      className="flex items-center gap-1 text-[var(--color-primary)] font-bold text-xs uppercase tracking-widest hover:opacity-70 transition-opacity"
+                    >
+                      <Plus className="w-4 h-4" /> Agregar artículo
+                    </button>
+                  ) : (
+                    <div className="p-4 bg-[var(--color-warm-bg)] border border-dashed border-[var(--color-primary)] rounded-2xl flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                      <div className="flex-1 w-full">
+                        <input
+                          type="text"
+                          placeholder="Nombre del artículo..."
+                          value={customItemName}
+                          onChange={(e) => setCustomItemName(capitalizeWords(e.target.value))}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-[var(--color-primary)] text-sm font-bold transition-all"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="relative w-full sm:w-32">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Precio"
+                            value={customItemPrice ? formatPrice(Number(customItemPrice)) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setCustomItemPrice(val);
+                            }}
+                            className="w-full pl-8 pr-3 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-[var(--color-primary)] text-sm font-bold transition-all"
+                          />
+                        </div>
+                        <button 
+                          onClick={handleAddCustomItem}
+                          disabled={!customItemName.trim() || !customItemPrice}
+                          className="p-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                        >
+                          <Check className="w-5 h-5" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setShowCustomItemForm(false);
+                            setCustomItemName('');
+                            setCustomItemPrice('');
+                          }}
+                          className="p-3 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-xl transition-colors shrink-0"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
