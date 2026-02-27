@@ -120,7 +120,7 @@ export default function StatsDashboard() {
           </div>
           <div className="space-y-6">
             {stats?.topBooks?.map((book: any, i: number) => (
-              <div key={i} className="flex items-center gap-4">
+              <div key={book.id} className="flex items-center gap-4">
                 <div className="w-8 h-8 rounded-full bg-[#FFF9F5] flex items-center justify-center text-[#B23B23] font-black text-xs">
                   {i + 1}
                 </div>

@@ -30,10 +30,10 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
         <span className="font-bold">Volver al catálogo</span>
       </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 bg-white rounded-[3rem] p-8 sm:p-12 shadow-xl border border-[#FDF2F0]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 bg-white rounded-[3rem] p-6 sm:p-8 shadow-xl border border-[#FDF2F0]">
         {/* Images Section */}
         <div className="space-y-6">
-          <div className="aspect-[3/4] rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner">
+          <div className="aspect-[3/4] rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner md:w-3/4 lg:w-2/3 mx-auto">
             {book.cover_url ? (
               <img 
                 src={book.cover_url} 
@@ -49,7 +49,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
           </div>
           
           {book.contraportada_url && (
-            <div className="aspect-[3/4] rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner opacity-80 hover:opacity-100 transition-opacity">
+            <div className="aspect-[3/4] rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner md:w-3/4 lg:w-2/3 mx-auto">
               <img 
                 src={book.contraportada_url} 
                 alt="Contraportada" 
@@ -68,11 +68,12 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                 {book.category}
               </span>
             )}
-            <h1 className="text-4xl sm:text-5xl font-black text-[#2D1A1A] leading-tight mb-4">{book.title}</h1>
-            <p className="text-xl text-gray-400 font-bold mb-6">{book.author}</p>
+            <h1 className="text-3xl sm:text-4xl font-black text-[#2D1A1A] leading-tight mb-3 sm:mb-4">{book.title}</h1>
+            <p className="text-lg text-gray-400 font-bold mb-4 sm:mb-6">{book.author}</p>
             
+          {currentUser && (
             <div className="flex items-center gap-6 mb-8">
-              <p className="text-5xl font-black text-[#B23B23]">${formatPrice(book.price)}</p>
+              <p className="text-4xl sm:text-5xl font-black text-[#B23B23]">${formatPrice(book.price)}</p>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${book.stock > 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
@@ -83,12 +84,13 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                 <p className="text-xs font-bold text-gray-400 mt-1">{book.stock} unidades disponibles</p>
               </div>
             </div>
+          )}
           </div>
 
           <div className="flex-1 space-y-8">
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Descripción</h3>
-              <p className="text-gray-600 leading-relaxed text-lg whitespace-pre-line">
+              <p className="text-gray-600 leading-relaxed text-base sm:text-lg whitespace-pre-line">
                 {book.description || 'Sin descripción disponible.'}
               </p>
             </div>

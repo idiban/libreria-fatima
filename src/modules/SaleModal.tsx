@@ -29,7 +29,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
   const [items, setItems] = useState<SaleItem[]>([
-    { bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1 }
+    { bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock }
   ]);
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
@@ -37,6 +37,10 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [bookSuggestions, setBookSuggestions] = useState<BookItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [smartClientPrompt, setSmartClientPrompt] = useState<{ existing: any, current: string } | null>(null);
+  const [clientNameError, setClientNameError] = useState(false);
+  const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
+
+  const [isClientSelected, setIsClientSelected] = useState(false);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -45,19 +49,31 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
   useEffect(() => {
-    if (clientName.length > 2) {
+    if (clientName.length > 2 && !isClientSelected) {
       const fetchSuggestions = async () => {
         try {
           const res = await fetch(`/api/clients/suggest?q=${encodeURIComponent(clientName)}`);
-          const data = await res.json();
-          setClientSuggestions(data);
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.indexOf('application/json') !== -1) {
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              setClientSuggestions(data);
+            } else {
+              setClientSuggestions([]);
+            }
+          } else {
+            setClientSuggestions([]);
+          }
         } catch (e) {}
       };
       fetchSuggestions();
     } else {
       setClientSuggestions([]);
+      if (clientName.length <= 2) {
+        setIsClientSelected(false);
+      }
     }
-  }, [clientName]);
+  }, [clientName, isClientSelected]);
 
   const handleBookSearch = async (term: string) => {
     setBookSearchTerm(term);
@@ -73,12 +89,21 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
         
         // For now, simple fetch but we can use AI to refine the query
         const res = await fetch('/api/books');
-        const allBooks: BookItem[] = await res.json();
-        const filtered = allBooks.filter(b => 
-          b.title.toLowerCase().includes(term.toLowerCase()) || 
-          b.author.toLowerCase().includes(term.toLowerCase())
-        );
-        setBookSuggestions(filtered);
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.indexOf('application/json') !== -1) {
+          const allBooks: BookItem[] = await res.json();
+          if (Array.isArray(allBooks)) {
+            const filtered = allBooks.filter(b => 
+              b.title.toLowerCase().includes(term.toLowerCase()) || 
+              b.author.toLowerCase().includes(term.toLowerCase())
+            );
+            setBookSuggestions(filtered);
+          } else {
+            setBookSuggestions([]);
+          }
+        } else {
+          setBookSuggestions([]);
+        }
       } catch (e) {} finally {
         setIsSearching(false);
       }
@@ -93,7 +118,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       if (existing) {
         return prev.map(i => i.bookId === book.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { bookId: book.id, title: book.title, price: book.price, quantity: 1 }];
+      return [...prev, { bookId: book.id, title: book.title, price: book.price, quantity: 1, stock: book.stock }];
     });
     setBookSearchTerm('');
     setBookSuggestions([]);
@@ -102,7 +127,8 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const updateQuantity = (bookId: string, delta: number) => {
     setItems(prev => prev.map(item => {
       if (item.bookId === bookId) {
-        const newQty = Math.max(1, item.quantity + delta);
+        let newQty = item.quantity + delta;
+        if (newQty < 1) newQty = 1; // Cantidad mínima 1
         return { ...item, quantity: newQty };
       }
       return item;
@@ -114,9 +140,15 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setItems(prev => prev.filter(i => i.bookId !== bookId));
   };
 
+  useEffect(() => {
+    if (amountPaid > total) {
+      setAmountPaid(total);
+    }
+  }, [total, amountPaid]);
+
   const handleFinalize = async () => {
     if (!clientName.trim()) {
-      alert('Por favor, ingresa el nombre del comprador.');
+      setClientNameError(true);
       return;
     }
 
@@ -158,7 +190,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -167,10 +199,13 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
             {/* Header */}
-            <div className="p-8 border-b border-[#FDF2F0] flex justify-between items-center bg-[#FFF9F5]">
+            <div className="p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)]">
               <div>
-                <h2 className="text-3xl font-black text-[#B23B23] leading-tight">
-                  {clientName || 'Venta'}
+                <h2 className="text-3xl font-black text-[var(--color-primary)] leading-tight flex items-center gap-2">
+                  <span>{clientName || 'Venta'}</span>
+                  {selectedClientDebt && selectedClientDebt > 0 && (
+                    <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">Debe ${formatPrice(selectedClientDebt)}</span>
+                  )}
                 </h2>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Carrito de Compras</p>
               </div>
@@ -188,14 +223,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
-                    className="w-full pl-12 pr-4 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold"
+                    className={`w-full pl-12 pr-4 py-4 bg-[var(--color-warm-bg)] border-2 rounded-2xl outline-none transition-all font-bold ${clientNameError ? 'border-red-500' : 'border-transparent focus:border-[var(--color-primary)]'}`}
                     placeholder="Nombre del cliente..."
                     value={clientName}
                     onChange={(e) => {
                       setClientName(e.target.value);
                       setClientId(null);
+                      if (clientNameError) setClientNameError(false);
+                      setSelectedClientDebt(null);
                     }}
                   />
+                  {clientNameError && <p className="text-red-500 text-xs font-bold mt-1 ml-2 absolute">Debes ingresar un nombre de comprador.</p>}
                   {clientSuggestions.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50">
                       {clientSuggestions.map((c) => (
@@ -204,12 +242,16 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                           onClick={() => {
                             setClientName(c.name);
                             setClientId(c.id);
+                            if (c.totalDebt) {
+                              setSelectedClientDebt(c.totalDebt);
+                            }
+                            setIsClientSelected(true);
                             setClientSuggestions([]);
                           }}
-                          className="w-full px-4 py-3 text-left hover:bg-[#FFF9F5] transition-colors flex items-center justify-between"
+                          className="w-full px-4 py-3 text-left hover:bg-[var(--color-warm-bg)] transition-colors flex items-center justify-between"
                         >
                           <span className="font-bold text-sm">{c.name}</span>
-                          <span className="text-[10px] font-black text-[#B23B23] uppercase tracking-widest">Existente</span>
+                          <span className="text-[10px] font-black text-[var(--color-primary)] uppercase tracking-widest">Existente</span>
                         </button>
                       ))}
                     </div>
@@ -222,28 +264,38 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                 <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Productos</label>
                 <div className="space-y-3">
                   {items.map((item) => (
-                    <div key={item.bookId} className="flex items-center gap-4 p-4 bg-white border border-[#FDF2F0] rounded-2xl shadow-sm">
+                    <div key={item.bookId} className="flex items-center gap-4 p-4 bg-white border border-[var(--color-warm-surface)] rounded-2xl shadow-sm">
                       <div className="flex-1">
                         <h4 className="font-bold text-sm leading-tight">{item.title}</h4>
-                        <p className="text-[#B23B23] font-black text-xs mt-1">${formatPrice(item.price)}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
+                          {item.stock === 0 && (
+                            <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">Sin Stock</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 bg-[#FFF9F5] rounded-xl p-1">
+                      <div className="flex items-center gap-3 bg-[var(--color-warm-bg)] rounded-xl p-1">
                         <button 
                           onClick={() => updateQuantity(item.bookId, -1)}
-                          className="p-1.5 hover:bg-white rounded-lg text-gray-400 hover:text-[#B23B23] transition-all"
+                          className="p-1.5 hover:bg-white rounded-lg text-gray-400 hover:text-[var(--color-primary)] transition-all"
                         >
                           <Minus className="w-4 h-4" />
                         </button>
                         <span className="font-black text-sm w-6 text-center">{item.quantity}</span>
                         <button 
                           onClick={() => updateQuantity(item.bookId, 1)}
-                          className="p-1.5 hover:bg-white rounded-lg text-gray-400 hover:text-[#B23B23] transition-all"
+                          className="p-1.5 hover:bg-white rounded-lg text-gray-400 hover:text-[var(--color-primary)] transition-all"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
                       </div>
                       <button 
-                        onClick={() => removeItem(item.bookId)}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          removeItem(item.bookId);
+                        }}
                         className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -257,14 +309,14 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="text"
-                    className="w-full pl-12 pr-4 py-3 bg-white border border-dashed border-gray-300 rounded-2xl text-sm outline-none focus:border-[#B23B23] transition-all"
+                    className="w-full pl-12 pr-4 py-3 bg-white border border-dashed border-gray-300 rounded-2xl text-sm outline-none focus:border-[var(--color-primary)] transition-all"
                     placeholder="Buscar otro libro para agregar..."
                     value={bookSearchTerm}
                     onChange={(e) => handleBookSearch(e.target.value)}
                   />
                   {isSearching && (
                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                      <Loader2 className="w-4 h-4 animate-spin text-[#B23B23]" />
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
                     </div>
                   )}
                   {bookSuggestions.length > 0 && (
@@ -273,13 +325,13 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         <button
                           key={b.id}
                           onClick={() => addItem(b)}
-                          className="w-full px-4 py-3 text-left hover:bg-[#FFF9F5] transition-colors flex items-center justify-between"
+                          className="w-full px-4 py-3 text-left hover:bg-[var(--color-warm-bg)] transition-colors flex items-center justify-between"
                         >
                           <div>
                             <p className="font-bold text-sm">{b.title}</p>
                             <p className="text-[10px] text-gray-400 font-medium">{b.author}</p>
                           </div>
-                          <span className="font-black text-[#B23B23] text-xs">${formatPrice(b.price)}</span>
+                          <span className="font-black text-[var(--color-primary)] text-xs">${formatPrice(b.price)}</span>
                         </button>
                       ))}
                     </div>
@@ -288,28 +340,37 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               </div>
 
               {/* Payment Section */}
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-[#FDF2F0]">
+              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-[var(--color-warm-surface)]">
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Monto Pagado</label>
                   <div className="relative">
                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
-                      type="number"
-                      className="w-full pl-12 pr-4 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[#B23B23] rounded-2xl outline-none transition-all font-black text-xl"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(Number(e.target.value))}
+                      type="text"
+                      className="w-full pl-12 pr-4 py-4 bg-[var(--color-warm-bg)] border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-xl"
+                      value={amountPaid ? formatPrice(amountPaid) : ''}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '');
+                        let num = Number(val);
+                        if (num > total) num = total;
+                        setAmountPaid(num);
+                      }}
                     />
                   </div>
                   <button 
                     onClick={() => setAmountPaid(total)}
-                    className="text-[10px] font-black uppercase tracking-widest text-[#B23B23] hover:underline ml-1"
+                    className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)] hover:underline ml-1"
                   >
                     Pagó todo
                   </button>
                 </div>
-                <div className="bg-[#B23B23] rounded-3xl p-6 flex flex-col justify-center items-end text-white shadow-xl shadow-[#B23B23]/20">
+                <div className={`rounded-3xl p-6 flex flex-col justify-center items-end text-white shadow-xl transition-all duration-300 ${
+                  amountPaid >= total 
+                    ? 'bg-emerald-500 shadow-emerald-500/20' 
+                    : 'bg-red-500 shadow-red-500/20'
+                }`}>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Total a Pagar</p>
-                  <p className="text-4xl font-black">${formatPrice(total)}</p>
+                  <p className="text-2xl font-black">${formatPrice(total)}</p>
                   {total - amountPaid > 0 && (
                     <p className="text-[10px] font-bold mt-2 bg-white/20 px-2 py-1 rounded-lg">
                       Deuda: ${formatPrice(total - amountPaid)}
@@ -320,7 +381,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             </div>
 
             {/* Footer */}
-            <div className="p-8 bg-[#FFF9F5] border-t border-[#FDF2F0] flex gap-4">
+            <div className="p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-4">
               <button
                 onClick={onClose}
                 className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 hover:bg-gray-100 transition-all flex items-center justify-center gap-2"

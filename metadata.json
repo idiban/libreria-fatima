@@ -1,5 +1,5 @@
 {
   "name": "Librería Fátima",
   "description": "Gestión de inventario para la Librería Fátima, conectada con Firebase.",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["camera"]
 }

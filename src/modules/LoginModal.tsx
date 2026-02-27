@@ -24,7 +24,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       try {
         const res = await fetch(`/api/users/suggest?q=${encodeURIComponent(value)}`);
         const data = await res.json();
-        setSuggestions(data);
+        if (Array.isArray(data)) {
+          setSuggestions(data);
+        } else {
+          setSuggestions([]);
+        }
       } catch (e) {}
     } else {
       setSuggestions([]);
@@ -160,7 +164,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-[#B23B23] hover:bg-[#962D1A] text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-[#B23B23]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                  className="w-full bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <Loader2 className="w-6 h-6 animate-spin" />

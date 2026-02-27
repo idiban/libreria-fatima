@@ -16,7 +16,12 @@ export default function SalesHistory() {
       try {
         const res = await fetch('/api/sales');
         const data = await res.json();
-        setSales(data);
+        if (Array.isArray(data)) {
+          setSales(data);
+        } else {
+          console.error("Failed to fetch sales:", data);
+          setSales([]);
+        }
       } catch (e) {
         console.error(e);
       } finally {

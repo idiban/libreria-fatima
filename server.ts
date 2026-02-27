@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -43,6 +43,40 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
   app.use(cookieParser());
+
+  // Middleware to extend session on activity
+  app.use((req, res, next) => {
+    const userCookie = req.cookies.user;
+    if (userCookie) {
+      res.cookie("user", userCookie, { 
+        httpOnly: true, 
+        sameSite: 'none', 
+        secure: true,
+        maxAge: 3600000 // 1 hour
+      });
+    }
+    next();
+  });
+
+  // Middleware to check authentication
+  const checkAuth = (req: Request, res: Response, next: NextFunction) => {
+    if (!req.cookies.user) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+    next();
+  };
+
+  // Middleware to check for specific roles
+  const checkRole = (roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
+    if (!req.cookies.user) {
+      return res.status(401).json({ error: "No autenticado" });
+    }
+    const user = JSON.parse(req.cookies.user);
+    if (!roles.includes(user.role)) {
+      return res.status(403).json({ error: "Acceso denegado" });
+    }
+    next();
+  };
 
   // API Routes - Books
   app.get("/api/books", async (req, res) => {
@@ -162,51 +196,56 @@ async function startServer() {
       const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
       
       await firestore.runTransaction(async (transaction) => {
-        // 1. Update Stocks
+        // 1. READS
+        const bookDocs = [];
         for (const item of items) {
           const bookRef = firestore.collection("libros").doc(item.bookId);
           const bookDoc = await transaction.get(bookRef);
           if (!bookDoc.exists) throw new Error(`El libro ${item.title} no existe`);
-          
-          const currentStock = bookDoc.data()?.stock || 0;
-          if (currentStock < item.quantity) throw new Error(`Stock insuficiente para ${item.title}`);
-          
-          transaction.update(bookRef, { stock: currentStock - item.quantity });
+          bookDocs.push({ ref: bookRef, doc: bookDoc, item });
         }
 
-        // 2. Handle Client
+        let clientDoc = null;
+        let clientRef = null;
+        if (clientId) {
+          clientRef = firestore.collection("clientes").doc(clientId);
+          clientDoc = await transaction.get(clientRef);
+        }
+
+        // 2. WRITES
+        for (const { ref, doc, item } of bookDocs) {
+          const currentStock = doc.data()?.stock || 0;
+
+          transaction.update(ref, { stock: Math.max(0, currentStock - item.quantity) });
+        }
+
         let finalClientId = clientId;
-        const debt = total - amountPaid;
+        const debt = Number(total) - Number(amountPaid);
 
         if (!finalClientId) {
-          // Create new client
-          const clientRef = firestore.collection("clientes").doc();
-          transaction.set(clientRef, {
+          const newClientRef = firestore.collection("clientes").doc();
+          transaction.set(newClientRef, {
             name: clientName,
             name_lowercase: clientName.toLowerCase(),
             totalDebt: debt,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          finalClientId = clientRef.id;
-        } else {
-          // Update existing client debt
-          const clientRef = firestore.collection("clientes").doc(finalClientId);
-          const clientDoc = await transaction.get(clientRef);
+          finalClientId = newClientRef.id;
+        } else if (clientRef && clientDoc) {
           const currentDebt = clientDoc.data()?.totalDebt || 0;
           transaction.update(clientRef, { 
             totalDebt: currentDebt + debt,
-            name: clientName // Update name in case it was refined
+            name: clientName
           });
         }
 
-        // 3. Record Sale
         const saleRef = firestore.collection("ventas").doc();
         const saleData = {
           items,
           clientId: finalClientId,
           clientName,
-          total,
-          amountPaid,
+          total: Number(total),
+          amountPaid: Number(amountPaid),
           debt,
           sellerId,
           sellerName,
@@ -214,13 +253,15 @@ async function startServer() {
         };
         transaction.set(saleRef, saleData);
 
-        // 4. Log Activity
-        await logActivity(sellerId, sellerName, "SALE", {
-          saleId: saleRef.id,
-          clientName,
-          total,
-          itemsCount: items.length
-        });
+        // We can't await logActivity inside transaction safely if it's not part of it,
+        // but since we just add a doc, we can do it after the transaction.
+      });
+
+      // Log Activity outside transaction to avoid retries duplicating logs
+      await logActivity(sellerId, sellerName, "SALE", {
+        clientName,
+        total: Number(total),
+        itemsCount: items.length
       });
       
       res.json({ success: true });
@@ -254,6 +295,26 @@ async function startServer() {
     }
   });
 
+  app.get("/api/sales/client/:clientId", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+        const { clientId } = req.params;
+        const snapshot = await firestore.collection("ventas")
+            .where("clientId", "==", clientId)
+            .orderBy("timestamp", "desc")
+            .get();
+        const sales = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data(), 
+            date: doc.data().timestamp?.toDate()
+        }));
+        res.json(sales);
+    } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+    }
+});
+
   // API Routes - Clients
   app.get("/api/clients/suggest", async (req, res) => {
     const firestore = getFirestore();
@@ -261,7 +322,7 @@ async function startServer() {
     try {
       const { q } = req.query;
       if (!q || typeof q !== "string") return res.json([]);
-      const query = q.toLowerCase();
+      const query = normalizeUsername(q);
       
       // Fetch all clients and filter in memory for substring match
       // Note: For large datasets, use a dedicated search service (Algolia, ElasticSearch)
@@ -269,7 +330,7 @@ async function startServer() {
       
       const suggestions = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(client => (client.name_lowercase || '').includes(query))
+        .filter(client => normalizeUsername(client.name || '').includes(query))
         .slice(0, 5);
         
       res.json(suggestions);
@@ -303,6 +364,61 @@ async function startServer() {
       res.status(500).json({ error: (error as Error).message });
     }
   });
+
+  app.post("/api/clients/:id/pay", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
+    try {
+        const { id } = req.params;
+        const { amount } = req.body;
+
+        if (!amount || typeof amount !== 'number' || amount <= 0) {
+            return res.status(400).json({ error: "Monto de pago inválido." });
+        }
+
+        await firestore.runTransaction(async (transaction) => {
+            const clientRef = firestore.collection("clientes").doc(id);
+            const clientDoc = await transaction.get(clientRef);
+
+            if (!clientDoc.exists) {
+                throw new Error("Cliente no encontrado.");
+            }
+
+            const currentDebt = clientDoc.data()?.totalDebt || 0;
+            if (amount > currentDebt) {
+                throw new Error("El monto del pago no puede ser mayor a la deuda total.");
+            }
+
+            const newDebt = currentDebt - amount;
+            transaction.update(clientRef, { totalDebt: newDebt });
+
+            const paymentRef = firestore.collection("pagos").doc();
+            transaction.set(paymentRef, {
+                clientId: id,
+                clientName: clientDoc.data()?.name || 'N/A',
+                amountPaid: amount,
+                previousDebt: currentDebt,
+                newDebt: newDebt,
+                paymentDate: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        const userCookie = req.cookies.user;
+        if (userCookie) {
+            const user = JSON.parse(userCookie);
+            await logActivity(user.id, user.username, "DEBT_PAYMENT", {
+                clientId: id,
+                amountPaid: amount
+            });
+        }
+
+        res.json({ success: true, message: "Pago procesado correctamente." });
+
+    } catch (error) {
+        res.status(400).json({ error: (error as Error).message });
+    }
+});
 
   // Helper to normalize usernames (lowercase and remove accents)
   const normalizeUsername = (str: string) => {
@@ -416,13 +532,33 @@ async function startServer() {
         await firestore.collection("usuarios").doc(user.id).update({ role: "owner" });
       }
 
-      await logActivity(user.id, user.username, "LOGIN", { email: user.email });
+      await logActivity(user.id, user.username, "LOGIN");
 
-      res.cookie("user", JSON.stringify(user), { httpOnly: true, sameSite: 'none', secure: true });
+      const oneHour = 3600000;
+      res.cookie("user", JSON.stringify(user), { 
+        httpOnly: true, 
+        sameSite: 'none', 
+        secure: true,
+        maxAge: oneHour
+      });
       res.json(user);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
     }
+  });
+
+  app.post("/api/refresh-session", (req, res) => {
+    const userCookie = req.cookies.user;
+    if (!userCookie) return res.status(401).json({ error: "No session" });
+    
+    const oneHour = 3600000;
+    res.cookie("user", userCookie, { 
+      httpOnly: true, 
+      sameSite: 'none', 
+      secure: true,
+      maxAge: oneHour
+    });
+    res.json({ success: true });
   });
 
   app.post("/api/logout", async (req, res) => {
@@ -645,6 +781,53 @@ async function startServer() {
     }
   });
 
+  app.patch('/api/me/password', checkAuth, async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
+    const { currentPassword, newPassword } = req.body;
+    const userCookie = req.cookies.user;
+    if (!userCookie) return res.status(401).json({ error: 'No autenticado' });
+    
+    const currentUser = JSON.parse(userCookie);
+    const userId = currentUser.id;
+
+    try {
+      const auth = admin.auth();
+      const user = await auth.getUser(userId);
+      const email = user.email;
+
+      if (!email) {
+        return res.status(400).json({ error: 'El usuario no tiene un email registrado.' });
+      }
+
+      const apiKey = process.env.FIREBASE_WEB_API_KEY;
+      if (!apiKey) {
+        console.error('FIREBASE_WEB_API_KEY no está configurada.');
+        return res.status(500).json({ error: 'Error del servidor.' });
+      }
+
+      const verifyPasswordUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+      const verifyResponse = await fetch(verifyPasswordUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: currentPassword, returnSecureToken: false })
+      });
+
+      if (!verifyResponse.ok) {
+        return res.status(400).json({ error: 'La contraseña actual es incorrecta.', field: 'current' });
+      }
+
+      await auth.updateUser(userId, { password: newPassword });
+
+      res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
+
+    } catch (error) {
+      console.error('Error al cambiar la contraseña:', error);
+      res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+  });
+
   app.patch("/api/users/:id/role", async (req, res) => {
     const firestore = getFirestore();
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -695,9 +878,9 @@ async function startServer() {
       const booksSnapshot = await firestore.collection("libros").get();
       const usersSnapshot = await firestore.collection("usuarios").get();
 
-      const sales = salesSnapshot.docs.map(doc => doc.data());
-      const books = booksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const users = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const sales = salesSnapshot.docs.map(doc => doc.data() as any);
+      const books = booksSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      const users = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
 
       const totalRevenue = sales.reduce((acc, sale) => acc + (sale.total || 0), 0);
       const totalSales = sales.length;
@@ -718,7 +901,7 @@ async function startServer() {
       sales.forEach(sale => {
         if (!salesByBook[sale.bookId]) {
           const book = books.find(b => b.id === sale.bookId);
-          salesByBook[sale.bookId] = { count: 0, title: book?.titulo || "Unknown" };
+          salesByBook[sale.bookId] = { count: 0, title: book?.title || "Unknown" };
         }
         salesByBook[sale.bookId].count += (sale.quantity || 0);
       });

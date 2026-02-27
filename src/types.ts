@@ -23,6 +23,7 @@ export interface SaleItem {
   title: string;
   price: number;
   quantity: number;
+  stock: number;
 }
 
 export interface SaleRecord {
@@ -36,6 +37,7 @@ export interface SaleRecord {
   sellerId: string;
   sellerName: string;
   timestamp: any;
+  date?: any;
 }
 
 export interface ClientRecord {

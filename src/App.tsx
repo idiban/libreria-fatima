@@ -6,7 +6,7 @@ import { Menu, Library } from 'lucide-react';
 // Modules
 import Sidebar from './modules/Sidebar';
 import Catalog from './modules/Catalog';
-import StockManager from './modules/StockManager';
+import BookManager from './modules/BookManager';
 import UserAdmin from './modules/UserAdmin';
 import StatsDashboard from './modules/StatsDashboard';
 import ActivityLogs from './modules/ActivityLogs';
@@ -16,6 +16,7 @@ import BookDetail from './modules/BookDetail';
 import SaleModal from './modules/SaleModal';
 import LoginModal from './modules/LoginModal';
 import BookModal from './modules/BookModal';
+import ChangePasswordModal from './modules/ChangePasswordModal';
 
 export default function App() {
   const [books, setBooks] = useState<BookItem[]>([]);
@@ -36,15 +37,55 @@ export default function App() {
   
   // Modals
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
   
   // Admin Data
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  
+  // Session Timer
+  const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes in seconds
+
+  const resetTimer = useCallback(() => {
+    setTimeLeft(3600);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          handleLogout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+
+    return () => {
+      clearInterval(timer);
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+    };
+  }, [currentUser, resetTimer]);
 
   const fetchBooks = useCallback(async () => {
     try {
       const response = await fetch('/api/books');
-      const data = await response.json();
-      setBooks(data);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.indexOf('application/json') !== -1) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setBooks(data);
+        } else {
+          console.error("Failed to fetch books:", data);
+          setBooks([]);
+        }
+      } else {
+        handleLogout();
+      }
     } catch (error) {
       console.error('Error fetching books:', error);
     } finally {
@@ -55,9 +96,12 @@ export default function App() {
   const checkAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/me');
-      if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      if (response.ok && contentType && contentType.indexOf('application/json') !== -1) {
         const user = await response.json();
         setCurrentUser(user);
+      } else {
+        setCurrentUser(null);
       }
     } catch (e) {}
   }, []);
@@ -65,9 +109,14 @@ export default function App() {
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/users');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setAllUsers(data.sort((a, b) => a.username.localeCompare(b.username)));
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.indexOf('application/json') !== -1) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAllUsers(data.sort((a, b) => a.username.localeCompare(b.username)));
+        }
+      } else {
+        handleLogout();
       }
     } catch (e) {}
   }, []);
@@ -102,6 +151,10 @@ export default function App() {
 
   const renderView = () => {
     switch (activeView) {
+      case 'change-password':
+        setIsChangePasswordModalOpen(true);
+        setActiveView('catalog'); // Fallback to a default view
+        break;
       case 'catalog':
         if (selectedBook) {
           return (
@@ -132,8 +185,14 @@ export default function App() {
             onBookClick={(book) => setSelectedBook(book)}
           />
         );
-      case 'stock':
-        return <StockManager books={books} onUpdateStock={handleUpdateStock} />;
+      case 'books':
+        return <BookManager books={books} onEditBook={(book) => {
+          setEditingBook(book);
+          setIsBookModalOpen(true);
+        }} onAddBook={() => {
+          setEditingBook(null);
+          setIsBookModalOpen(true);
+        }} onBookDeleted={fetchBooks} />;
       case 'users':
         return currentUser ? <UserAdmin currentUser={currentUser} allUsers={allUsers} onFetchUsers={fetchUsers} /> : null;
       case 'stats':
@@ -143,14 +202,14 @@ export default function App() {
       case 'sales':
         return <SalesHistory />;
       case 'debtors':
-        return <DebtorsList />;
+        return <DebtorsList books={books} />;
       default:
         return <Catalog books={books} loading={loading} searchTerm={searchTerm} setSearchTerm={setSearchTerm} currentUser={currentUser} onEditBook={() => {}} onAddBook={() => {}} onSaleClick={() => {}} onBookClick={() => {}} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF9F5] flex">
+    <div className="min-h-screen bg-[var(--color-warm-bg)] flex">
       {currentUser && (
         <Sidebar 
           currentUser={currentUser}
@@ -164,21 +223,27 @@ export default function App() {
           setIsCollapsed={setIsSidebarCollapsed}
           isMobileOpen={isMobileMenuOpen}
           setIsMobileOpen={setIsMobileMenuOpen}
+          timeLeft={timeLeft}
         />
       )}
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {currentUser && (
-          <div className="md:hidden bg-white border-b border-[#FDF2F0] p-4 flex items-center justify-between z-40 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="bg-[#B23B23] p-1.5 rounded-lg">
+          <div className="md:hidden bg-white border-b border-[var(--color-warm-surface)] p-4 flex items-center justify-between z-40 shrink-0">
+            <button onClick={() => {
+              setActiveView('catalog');
+              setSelectedBook(null);
+            }} className="flex items-center gap-2">
+              <div className="bg-[var(--color-primary)] p-1.5 rounded-lg">
                 <Library className="w-5 h-5 text-white" />
               </div>
-              <h1 className="font-bold text-lg text-[#2D1A1A]">Librería Fátima</h1>
-            </div>
-            <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">
-              <Menu className="w-6 h-6" />
+              <h1 className="font-bold text-lg text-[var(--color-primary)]">Librería Fátima</h1>
             </button>
+            {currentUser && (
+              <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">
+                <Menu className="w-6 h-6" />
+              </button>
+            )}
           </div>
         )}
         <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto">
@@ -190,13 +255,22 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {!currentUser && activeView === 'catalog' && !selectedBook && (
-              <div className="flex justify-end mb-8">
+            {!currentUser && !selectedBook && (
+              <div className="flex justify-between items-center mb-8">
+                <button onClick={() => {
+                  setActiveView('catalog');
+                  setSelectedBook(null);
+                }} className="flex items-center gap-2">
+                  <div className="bg-[var(--color-primary)] p-1.5 rounded-lg">
+                    <Library className="w-5 h-5 text-white" />
+                  </div>
+                  <h1 className="font-bold text-lg text-[var(--color-primary)]">Librería Fátima</h1>
+                </button>
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="bg-[#B23B23] text-white px-4 py-2 text-sm md:px-6 md:py-3 md:text-base rounded-2xl font-black shadow-lg shadow-[#B23B23]/20 hover:scale-105 transition-all"
+                  className="bg-[var(--color-primary)] text-white px-4 py-2 text-sm md:px-6 md:py-3 md:text-base rounded-2xl font-black shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all"
                 >
-                  Ingresar al Sistema
+                  Ingresar
                 </button>
               </div>
             )}
@@ -210,7 +284,10 @@ export default function App() {
       <LoginModal 
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)} 
-        onLoginSuccess={(user) => setCurrentUser(user)}
+        onLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setIsMobileMenuOpen(false);
+        }}
       />
 
       <BookModal 
@@ -218,6 +295,7 @@ export default function App() {
         onClose={() => setIsBookModalOpen(false)}
         editingBook={editingBook}
         onSave={fetchBooks}
+        books={books}
       />
 
       {saleBook && currentUser && (
@@ -229,6 +307,12 @@ export default function App() {
           onSaleSuccess={fetchBooks}
         />
       )}
+
+      <ChangePasswordModal 
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        onSuccess={() => alert('Contraseña actualizada con éxito')}
+      />
     </div>
   );
 }

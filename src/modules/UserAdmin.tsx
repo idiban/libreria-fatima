@@ -37,7 +37,6 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
 
   const [userFormData, setUserFormData] = useState({
     username: '',
-    email: '',
     password: '',
     role: 'vendedor' as const
   });
@@ -63,7 +62,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
       if (response.ok) {
         onFetchUsers();
         setIsUserModalOpen(false);
-        setUserFormData({ username: '', email: '', password: '', role: 'vendedor' });
+        setUserFormData({ username: '', password: '', role: 'vendedor' });
         setConfirmPassword('');
       } else {
         const err = await response.json();
@@ -163,7 +162,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
         
         <button
           onClick={() => setIsUserModalOpen(true)}
-          className="bg-[#B23B23] text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[#B23B23]/20 hover:scale-105 transition-all"
+          className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all"
         >
           <Plus className="w-5 h-5" />
           Nuevo Usuario
@@ -176,7 +175,6 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
             <thead>
               <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[#FDF2F0]">
                 <th className="px-8 py-6">Usuario</th>
-                <th className="px-8 py-6">Email</th>
                 <th className="px-8 py-6">Rol</th>
                 <th className="px-8 py-6 text-right">Acciones</th>
               </tr>
@@ -186,20 +184,19 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                 <tr key={user.id} className="hover:bg-[#FFF9F5] transition-colors group">
                   <td className="px-8 py-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#B23B23] flex items-center justify-center text-white text-xs font-bold">
+                      <div className="w-8 h-8 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-xs font-bold">
                         {user.username[0].toUpperCase()}
                       </div>
                       <span className="font-bold text-[#2D1A1A]">{user.username}</span>
                     </div>
                   </td>
-                  <td className="px-8 py-6 text-sm text-gray-500 font-medium">{user.email}</td>
                   <td className="px-8 py-6">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                       user.role === 'owner' ? 'bg-amber-100 text-amber-600' :
                       user.role === 'admin' ? 'bg-purple-100 text-purple-600' :
                       'bg-emerald-100 text-emerald-600'
                     }`}>
-                      {user.role}
+                      {user.role === 'owner' ? 'Dueño' : user.role === 'admin' ? 'Administrador' : user.role}
                     </span>
                   </td>
                   <td className="px-8 py-6 text-right">
@@ -209,7 +206,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                           setSelectedUserId(user.id);
                           setIsAdminResetModalOpen(true);
                         }}
-                        className="p-2 hover:bg-[#FDF2F0] rounded-xl text-gray-400 hover:text-[#B23B23] transition-all"
+                        className="p-2 hover:bg-emerald-50 rounded-xl text-gray-400 hover:text-emerald-600 transition-all"
                         title="Resetear Contraseña"
                       >
                         <Key className="w-4 h-4" />
@@ -220,7 +217,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                           setEditUserFormData({ username: user.username, role: user.role || 'vendedor' });
                           setIsEditUserModalOpen(true);
                         }}
-                        className="p-2 hover:bg-[#FDF2F0] rounded-xl text-gray-400 hover:text-[#B23B23] transition-all"
+                        className="p-2 hover:bg-emerald-50 rounded-xl text-gray-400 hover:text-emerald-600 transition-all"
                         title="Editar Usuario"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -257,30 +254,26 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
               <form onSubmit={handleCreateUser} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Nombre de Usuario</label>
-                  <input type="text" required value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Email</label>
-                  <input type="email" required value={userFormData.email} onChange={e => setUserFormData({...userFormData, email: e.target.value})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type="text" required value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Rol</label>
-                  <select value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]">
+                  <select value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
                     <option value="vendedor">Vendedor</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
                 <div className="space-y-1 relative">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Contraseña</label>
-                  <input type={showPasswords.create ? "text" : "password"} required value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type={showPasswords.create ? "text" : "password"} required value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                   <button type="button" onClick={() => setShowPasswords({...showPasswords, create: !showPasswords.create})} className="absolute right-4 top-9 text-gray-400"><Eye className="w-4 h-4" /></button>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Confirmar Contraseña</label>
-                  <input type={showPasswords.create ? "text" : "password"} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type={showPasswords.create ? "text" : "password"} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                 </div>
                 {error && <p className="text-red-500 text-[10px] font-bold">{error}</p>}
-                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[#B23B23] text-white rounded-xl font-black shadow-lg shadow-[#B23B23]/20 flex items-center justify-center gap-2">
+                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[var(--color-primary)] text-white rounded-xl font-black shadow-lg shadow-[var(--color-primary)]/20 flex items-center justify-center gap-2">
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Crear Usuario
                 </button>
               </form>
@@ -297,17 +290,17 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
               <form onSubmit={handleUpdateUser} className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Nombre de Usuario</label>
-                  <input type="text" required value={editUserFormData.username} onChange={e => setEditUserFormData({...editUserFormData, username: e.target.value})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type="text" required value={editUserFormData.username} onChange={e => setEditUserFormData({...editUserFormData, username: e.target.value})} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Rol</label>
-                  <select value={editUserFormData.role} onChange={e => setEditUserFormData({...editUserFormData, role: e.target.value as any})} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]">
+                  <select value={editUserFormData.role} onChange={e => setEditUserFormData({...editUserFormData, role: e.target.value as any})} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]">
                     <option value="vendedor">Vendedor</option>
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
                 {error && <p className="text-red-500 text-[10px] font-bold">{error}</p>}
-                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[#B23B23] text-white rounded-xl font-black shadow-lg shadow-[#B23B23]/20 flex items-center justify-center gap-2">
+                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[var(--color-primary)] text-white rounded-xl font-black shadow-lg shadow-[var(--color-primary)]/20 flex items-center justify-center gap-2">
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Guardar Cambios
                 </button>
               </form>
@@ -325,15 +318,15 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
               <form onSubmit={handleAdminResetPassword} className="space-y-4">
                 <div className="space-y-1 relative">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Nueva Contraseña</label>
-                  <input type={showPasswords.reset ? "text" : "password"} required value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type={showPasswords.reset ? "text" : "password"} required value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                   <button type="button" onClick={() => setShowPasswords({...showPasswords, reset: !showPasswords.reset})} className="absolute right-4 top-9 text-gray-400"><Eye className="w-4 h-4" /></button>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Confirmar Contraseña</label>
-                  <input type={showPasswords.reset ? "text" : "password"} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-5 py-3 bg-[#FFF9F5] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[#B23B23]" />
+                  <input type={showPasswords.reset ? "text" : "password"} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)]" />
                 </div>
                 {error && <p className="text-red-500 text-[10px] font-bold">{error}</p>}
-                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[#B23B23] text-white rounded-xl font-black shadow-lg shadow-[#B23B23]/20 flex items-center justify-center gap-2">
+                <button type="submit" disabled={isLoading} className="w-full py-4 bg-[var(--color-primary)] text-white rounded-xl font-black shadow-lg shadow-[var(--color-primary)]/20 flex items-center justify-center gap-2">
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Key className="w-5 h-5" />} Actualizar Contraseña
                 </button>
               </form>

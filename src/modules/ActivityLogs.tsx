@@ -13,7 +13,12 @@ export default function ActivityLogs() {
       try {
         const res = await fetch('/api/logs');
         const data = await res.json();
-        setLogs(data);
+        if (Array.isArray(data)) {
+          setLogs(data);
+        } else {
+          console.error("Failed to fetch logs:", data);
+          setLogs([]);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -114,7 +119,11 @@ export default function ActivityLogs() {
                   </td>
                   <td className="px-8 py-6">
                     <div className="text-xs text-gray-500 font-medium max-w-md truncate group-hover:whitespace-normal group-hover:overflow-visible transition-all">
-                      {JSON.stringify(log.details)}
+                      {JSON.stringify(
+                        Object.fromEntries(
+                          Object.entries(log.details || {}).filter(([key]) => key !== 'email')
+                        )
+                      )}
                     </div>
                   </td>
                 </tr>
