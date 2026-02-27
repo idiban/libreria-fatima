@@ -21,7 +21,12 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
       try {
         const res = await fetch(`/api/debts/client/${client.id}`);
         const data = await res.json();
-        setDebtData(data);
+        
+        // CORRECCIÓN 1: Manejar si el backend devuelve un Array directamente o el Objeto esperado
+        setDebtData({
+          history: Array.isArray(data) ? data : (data.history || []),
+          totalDebt: data.totalDebt !== undefined ? data.totalDebt : client.totalDebt
+        });
       } catch (e) {
         console.error("Error al cargar detalle de deuda:", e);
       } finally {
@@ -37,7 +42,19 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
 
   const getDebtDate = (entry: any) => {
     if (!entry.timestamp) return 'Fecha desconocida';
-    const date = new Date(entry.timestamp);
+    
+    // CORRECCIÓN 2: Manejo de Firebase Timestamps (_seconds/seconds) o Strings
+    let date;
+    if (typeof entry.timestamp === 'object') {
+      if (entry.timestamp.seconds) date = new Date(entry.timestamp.seconds * 1000);
+      else if (entry.timestamp._seconds) date = new Date(entry.timestamp._seconds * 1000);
+      else date = new Date(entry.timestamp);
+    } else {
+      date = new Date(entry.timestamp);
+    }
+
+    if (isNaN(date.getTime())) return 'Fecha inválida';
+
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   };
 
@@ -128,7 +145,8 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                                   </div>
                                 )}
                               </div>
-                              <p className="font-black text-sm text-red-500">Deuda: ${formatPrice(entry.amount)}</p>
+                              {/* CORRECCIÓN 3: Calcular la deuda basada en la colección "ventas" (total - amountPaid) */}
+                              <p className="font-black text-sm text-red-500">Deuda: ${formatPrice(entry.total - (entry.amountPaid || 0))}</p>
                             </div>
                             <ul className="mt-2 text-xs text-gray-500 space-y-2">
                               {entry.items?.map((item: any) => {

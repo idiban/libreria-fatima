@@ -473,9 +473,9 @@ async function startServer() {
       const clientDoc = await firestore.collection("clientes").doc(clientId).get();
       const totalDebt = clientDoc.exists ? (clientDoc.data()?.totalDebt || 0) : 0;
 
+      // ELIMINADO: .orderBy("timestamp", "desc") para evitar error de índice en Firebase
       const salesSnapshot = await firestore.collection("ventas")
         .where("clientId", "==", clientId)
-        .orderBy("timestamp", "desc")
         .get();
       
       const sales = salesSnapshot.docs.map(doc => {
@@ -489,9 +489,9 @@ async function startServer() {
         };
       }).filter(sale => sale.amount > 0);
 
+      // ELIMINADO: .orderBy("timestamp", "desc")
       const paymentsSnapshot = await firestore.collection("pagos")
         .where("clientId", "==", clientId)
-        .orderBy("timestamp", "desc")
         .get();
 
       const payments = paymentsSnapshot.docs.map(doc => ({
@@ -500,14 +500,16 @@ async function startServer() {
         timestamp: doc.data().timestamp?.toDate()
       }));
 
+      // Este sort en memoria ordena todo cronológicamente, haciendo innecesario el orderBy de Firebase
       const history = [...sales, ...payments].sort((a, b) => {
         const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
         const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeB - timeA;
+        return timeB - timeA; // Descendente (más recientes primero)
       });
 
       res.json({ totalDebt, history });
     } catch (error) {
+      console.error("Error al obtener deudas:", error);
       res.status(500).json({ error: (error as Error).message });
     }
   });
