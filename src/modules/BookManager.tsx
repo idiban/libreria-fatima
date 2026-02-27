@@ -44,35 +44,36 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Gestión de Libros</h2>
-          <p className="text-gray-500 font-medium">Administra y organiza los libros de tu librería.</p>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Gestión de Libros</h2>
+          <p className="text-sm sm:text-base text-gray-500 font-medium">Administra y organiza los libros de tu librería.</p>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+          <div className="relative flex-1 sm:flex-initial">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar libro..."
-              className="pl-12 pr-6 py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
+              className="pl-12 pr-6 py-4 sm:py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full sm:w-64 md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <button
             onClick={onAddBook}
-            className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all shrink-0"
+            className="bg-[var(--color-primary)] text-white px-6 py-4 sm:py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all shrink-0"
           >
             <Plus className="w-5 h-5" />
-            <span className="hidden sm:inline">Añadir Libro</span>
+            <span>Añadir Libro</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)] overflow-hidden">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -89,12 +90,62 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                   key={book.id} 
                   book={book} 
                   onEditBook={onEditBook}
-                  onDeleteRequest={() => setBookToDelete(book)}
+                  onDeleteRequest={setBookToDelete}
                 />
               ))}
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {filteredBooks.map((book) => (
+          <div key={book.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-20 rounded-xl bg-gray-50 overflow-hidden shrink-0 border border-gray-100 shadow-sm">
+                {book.cover_url ? (
+                  <img src={book.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-200">
+                    <Package className="w-8 h-8" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-[var(--color-primary)] truncate text-lg">{book.title}</p>
+                <p className="text-xs text-gray-400 font-bold truncate mb-2">{book.author}</p>
+                <span className="inline-block px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
+                  {book.category || 'Sin categoría'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between pt-4 border-t border-[var(--color-warm-surface)]">
+              <div className="flex flex-col">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</span>
+                <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : 'text-[var(--color-primary)]'}`}>
+                  {book.stock}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => onEditBook(book)}
+                  className="p-3 bg-[var(--color-warm-bg)] rounded-xl text-[var(--color-primary)] shadow-sm active:scale-95 transition-all"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+                <button 
+                  onClick={() => setBookToDelete(book)}
+                  className="p-3 bg-red-50 rounded-xl text-red-500 shadow-sm active:scale-95 transition-all"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <ConfirmationModal
@@ -111,6 +162,7 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
 }
 
 interface BookRowProps {
+  key?: string;
   book: BookItem;
   onEditBook: (book: BookItem) => void;
   onDeleteRequest: (book: BookItem) => void;

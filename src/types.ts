@@ -24,6 +24,7 @@ export interface SaleItem {
   price: number;
   quantity: number;
   stock: number;
+  cover_url?: string;
 }
 
 export interface SaleRecord {

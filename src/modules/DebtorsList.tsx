@@ -43,7 +43,7 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
   };
 
   const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase())
+    client.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -90,9 +90,16 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
             onClick={() => setSelectedClient(client)}
           >
             <div className="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-4xl font-black mx-auto mb-4 group-hover:scale-110 transition-transform">
-              {client.name[0].toUpperCase()}
+              {client.name?.[0]?.toUpperCase() || ''}
             </div>
-            <h3 className="text-lg font-bold text-[var(--color-primary)] truncate">{client.name}</h3>
+            <h3 
+              className="font-bold text-[var(--color-primary)] leading-tight break-words"
+              style={{ 
+                fontSize: client.name?.length > 20 ? '0.75rem' : client.name?.length > 15 ? '0.875rem' : '1.125rem' 
+              }}
+            >
+              {client.name}
+            </h3>
             <p className="text-red-500 font-black text-2xl mt-2">${formatPrice(client.totalDebt)}</p>
           </motion.div>
         ))}

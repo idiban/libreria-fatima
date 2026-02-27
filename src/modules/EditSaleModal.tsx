@@ -9,38 +9,36 @@ import {
   User, 
   DollarSign, 
   Trash2,
-  Sparkles,
   AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookItem, UserProfile, SaleItem } from '../types';
-import { GoogleGenAI, Type } from "@google/genai";
+import { BookItem, UserProfile, SaleItem, SaleRecord } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
-interface SaleModalProps {
+interface EditSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialBook: BookItem;
+  sale: SaleRecord;
   currentUser: UserProfile;
   onSaleSuccess: () => void;
 }
 
-export default function SaleModal({ isOpen, onClose, initialBook, currentUser, onSaleSuccess }: SaleModalProps) {
-  const [clientName, setClientName] = useState('');
-  const [clientId, setClientId] = useState<string | null>(null);
+export default function EditSaleModal({ isOpen, onClose, sale, currentUser, onSaleSuccess }: EditSaleModalProps) {
+  const [clientName, setClientName] = useState(sale.clientName || '');
+  const [clientId, setClientId] = useState<string | null>(sale.clientId || null);
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
-  const [items, setItems] = useState<SaleItem[]>([
-    { bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }
-  ]);
-  const [amountPaid, setAmountPaid] = useState<number>(0);
+  const [items, setItems] = useState<SaleItem[]>(sale.items || []);
+  const [amountPaid, setAmountPaid] = useState<number>(sale.amountPaid || 0);
   const [isSearching, setIsSearching] = useState(false);
   const [bookSearchTerm, setBookSearchTerm] = useState('');
   const [bookSuggestions, setBookSuggestions] = useState<BookItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [smartClientPrompt, setSmartClientPrompt] = useState<{ existing: any, current: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [clientNameError, setClientNameError] = useState(false);
   const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
 
-  const [isClientSelected, setIsClientSelected] = useState(false);
+  const [isClientSelected, setIsClientSelected] = useState(!!sale.clientId);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -56,7 +54,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  // NUEVO REF: Para controlar la condición de carrera en la búsqueda
   const latestSearch = useRef<string>('');
 
   useEffect(() => {
@@ -88,23 +85,20 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const handleBookSearch = async (term: string) => {
     setBookSearchTerm(term);
-    latestSearch.current = term; // Actualizamos cuál es la búsqueda más reciente
+    latestSearch.current = term;
 
     if (term.length > 2) {
       setIsSearching(true);
       try {
-        // AI-powered search (not labeled as AI)
         const ai = new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY as string) });
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
           contents: [{ text: `Basado en el término de búsqueda "${term}", identifica qué libros del catálogo podrían coincidir. Responde solo con una lista de IDs de libros si los conoces, o palabras clave para filtrar.` }],
         });
         
-        // For now, simple fetch but we can use AI to refine the query
         const res = await fetch('/api/books');
         const contentType = res.headers.get('content-type');
         
-        // SOLUCIÓN: Si mientras la IA/fetch cargaba, el usuario escribió algo más, abortamos y no mostramos resultados viejos.
         if (latestSearch.current !== term) return;
 
         if (contentType && contentType.indexOf('application/json') !== -1) {
@@ -114,7 +108,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             const filtered = allBooks.filter(b => 
               normalizeText(b.title).includes(normalizedTerm) || 
               normalizeText(b.author).includes(normalizedTerm) ||
-              normalizeText(b.category).includes(normalizedTerm)
+              normalizeText(b.category || '').includes(normalizedTerm)
             );
             setBookSuggestions(filtered);
           } else {
@@ -124,7 +118,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           setBookSuggestions([]);
         }
       } catch (e) {} finally {
-        // Solo quitamos el estado de "cargando" si esta sigue siendo la búsqueda actual
         if (latestSearch.current === term) {
           setIsSearching(false);
         }
@@ -151,7 +144,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setItems(prev => prev.map(item => {
       if (item.bookId === bookId) {
         let newQty = item.quantity + delta;
-        if (newQty < 1) newQty = 1; // Cantidad mínima 1
+        if (newQty < 1) newQty = 1;
         return { ...item, quantity: newQty };
       }
       return item;
@@ -163,13 +156,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setItems(prev => prev.filter(i => i.bookId !== bookId));
   };
 
-  useEffect(() => {
-    const maxAllowed = total + (selectedClientDebt || 0);
-    if (amountPaid > maxAllowed) {
-      setAmountPaid(maxAllowed);
-    }
-  }, [total, amountPaid, selectedClientDebt]);
-
   const handleFinalize = async () => {
     if (!clientName.trim()) {
       setClientNameError(true);
@@ -178,8 +164,8 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/sales', {
-        method: 'POST',
+      const response = await fetch(`/api/sales/${sale.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items,
@@ -200,9 +186,30 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
         alert(err.error);
       }
     } catch (e) {
-      alert('Error al procesar la venta.');
+      alert('Error al actualizar la venta.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/sales/${sale.id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        onSaleSuccess();
+        onClose();
+      } else {
+        const err = await response.json();
+        alert(err.error);
+      }
+    } catch (e) {
+      alert('Error al eliminar la venta.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -226,16 +233,18 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             <div className="p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)]">
               <div>
                 <h2 className="text-3xl font-black text-[var(--color-primary)] leading-tight flex items-center gap-2">
-                  <span>{clientName || 'Venta'}</span>
-                  {selectedClientDebt && selectedClientDebt > 0 && (
-                    <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">Debe ${formatPrice(selectedClientDebt)}</span>
-                  )}
+                  <span>Editar Venta</span>
                 </h2>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Carrito de Compras</p>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors shadow-sm">
-                <X className="w-6 h-6 text-gray-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowDeleteConfirm(true)} className="p-2 hover:bg-red-50 text-red-400 hover:text-red-500 rounded-full transition-colors shadow-sm">
+                  <Trash2 className="w-6 h-6" />
+                </button>
+                <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors shadow-sm">
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
             </div>
 
             {/* Content */}
@@ -405,10 +414,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                       value={amountPaid ? formatPrice(amountPaid) : ''}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '');
-                        let num = Number(val);
-                        const maxAllowed = total + (selectedClientDebt || 0);
-                        if (num > maxAllowed) num = maxAllowed;
-                        setAmountPaid(num);
+                        setAmountPaid(Number(val));
                       }}
                     />
                   </div>
@@ -448,19 +454,45 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               <button
                 onClick={handleFinalize}
                 disabled={isLoading || !amountPaid || amountPaid <= 0 || !clientName.trim()}
-                className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                className="flex-[2] bg-[var(--color-primary)] hover:bg-[#8A2B1A] text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
                 ) : (
                   <>
                     <Check className="w-6 h-6" />
-                    Listo
+                    Guardar Cambios
                   </>
                 )}
               </button>
             </div>
           </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl">
+            <h3 className="text-2xl font-black text-[var(--color-primary)] mb-2">¿Eliminar Venta?</h3>
+            <p className="text-gray-500 font-medium mb-6">Esta acción restaurará el stock de los libros y ajustará la deuda del cliente. No se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Eliminar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </AnimatePresence>

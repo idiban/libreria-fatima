@@ -12,6 +12,7 @@ import StatsDashboard from './modules/StatsDashboard';
 import ActivityLogs from './modules/ActivityLogs';
 import SalesHistory from './modules/SalesHistory';
 import DebtorsList from './modules/DebtorsList';
+import ClientsList from './modules/ClientsList';
 import BookDetail from './modules/BookDetail';
 import SaleModal from './modules/SaleModal';
 import LoginModal from './modules/LoginModal';
@@ -32,6 +33,50 @@ export default function App() {
   
   // Selection State
   const [selectedBook, setSelectedBook] = useState<BookItem | null>(null);
+
+  // Handle Browser Back Button for All Views
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state) {
+        const { view, bookId } = event.state;
+        setActiveView(view || 'catalog');
+        
+        if (view === 'catalog' && bookId) {
+          const book = books.find(b => b.id === bookId);
+          setSelectedBook(book || null);
+        } else {
+          setSelectedBook(null);
+        }
+      } else {
+        // Default state (initial load)
+        setActiveView('catalog');
+        setSelectedBook(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [books]);
+
+  const navigateTo = (view: string, book: BookItem | null = null) => {
+    setActiveView(view);
+    setSelectedBook(book);
+    
+    const state = { view, bookId: book?.id };
+    // Avoid pushing duplicate states
+    if (JSON.stringify(window.history.state) !== JSON.stringify(state)) {
+      window.history.pushState(state, '');
+    }
+  };
+
+  const handleBookClick = (book: BookItem) => {
+    navigateTo('catalog', book);
+  };
+
+  const handleBackToCatalog = () => {
+    window.history.back();
+  };
+
   const [editingBook, setEditingBook] = useState<BookItem | null>(null);
   const [saleBook, setSaleBook] = useState<BookItem | null>(null);
   
@@ -160,7 +205,7 @@ export default function App() {
           return (
             <BookDetail 
               book={selectedBook} 
-              onBack={() => setSelectedBook(null)} 
+              onBack={handleBackToCatalog} 
               currentUser={currentUser}
               onSaleClick={(book) => setSaleBook(book)}
             />
@@ -182,7 +227,7 @@ export default function App() {
               setIsBookModalOpen(true);
             }}
             onSaleClick={(book) => setSaleBook(book)}
-            onBookClick={(book) => setSelectedBook(book)}
+            onBookClick={handleBookClick}
           />
         );
       case 'books':
@@ -200,7 +245,9 @@ export default function App() {
       case 'logs':
         return <ActivityLogs />;
       case 'sales':
-        return <SalesHistory />;
+        return currentUser ? <SalesHistory currentUser={currentUser} /> : null;
+      case 'clients':
+        return <ClientsList />;
       case 'debtors':
         return <DebtorsList books={books} />;
       default:
@@ -214,10 +261,7 @@ export default function App() {
         <Sidebar 
           currentUser={currentUser}
           activeView={activeView}
-          onViewChange={(view) => {
-            setActiveView(view);
-            setSelectedBook(null);
-          }}
+          onViewChange={(view) => navigateTo(view)}
           onLogout={handleLogout}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
@@ -228,12 +272,9 @@ export default function App() {
       )}
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {currentUser && (
+        {currentUser && !selectedBook && (
           <div className="md:hidden bg-white border-b border-[var(--color-warm-surface)] p-4 flex items-center justify-between z-40 shrink-0">
-            <button onClick={() => {
-              setActiveView('catalog');
-              setSelectedBook(null);
-            }} className="flex items-center gap-2">
+            <button onClick={() => navigateTo('catalog')} className="flex items-center gap-2">
               <div className="bg-[var(--color-primary)] p-1.5 rounded-lg">
                 <Library className="w-5 h-5 text-white" />
               </div>
@@ -246,7 +287,7 @@ export default function App() {
             )}
           </div>
         )}
-        <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto">
+        <div className={`flex-1 overflow-y-auto ${selectedBook ? 'p-0' : 'p-4 md:p-6 lg:p-10'}`}>
           <AnimatePresence mode="wait">
           <motion.div
             key={activeView + (selectedBook?.id || '')}
@@ -257,10 +298,7 @@ export default function App() {
           >
             {!currentUser && !selectedBook && (
               <div className="flex justify-between items-center mb-8">
-                <button onClick={() => {
-                  setActiveView('catalog');
-                  setSelectedBook(null);
-                }} className="flex items-center gap-2">
+                <button onClick={() => navigateTo('catalog')} className="flex items-center gap-2">
                   <div className="bg-[var(--color-primary)] p-1.5 rounded-lg">
                     <Library className="w-5 h-5 text-white" />
                   </div>

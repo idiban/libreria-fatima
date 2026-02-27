@@ -1,16 +1,17 @@
 import React from 'react';
 import { 
   Library, 
-  Package, 
+  BookOpen, 
   Users, 
   TrendingUp, 
-  History, 
+  DollarSign, 
   ClipboardList, 
   LogOut,
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  Key
+  Key,
+  Contact
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -40,11 +41,12 @@ export default function Sidebar({
 }: SidebarProps) {
   const menuItems = [
     { id: 'catalog', label: 'Catálogo', icon: Library, roles: ['owner', 'admin', 'vendedor'] },
-    { id: 'books', label: 'Libros', icon: Package, roles: ['owner', 'admin', 'vendedor'] },
-    { id: 'users', label: 'Usuarios', icon: Users, roles: ['owner', 'admin'] },
+    { id: 'books', label: 'Libros', icon: BookOpen, roles: ['owner', 'admin', 'vendedor'] },
+    { id: 'sales', label: 'Ventas', icon: DollarSign, roles: ['owner', 'admin', 'vendedor'] },
+    { id: 'clients', label: 'Clientes', icon: Contact, roles: ['owner', 'admin', 'vendedor'] },
+    { id: 'debtors', label: 'Deudas', icon: UserCheck, roles: ['owner', 'admin', 'vendedor'] },
     { id: 'stats', label: 'Estadísticas', icon: TrendingUp, roles: ['owner', 'admin'] },
-    { id: 'sales', label: 'Ventas', icon: History, roles: ['owner', 'admin', 'vendedor'] },
-    { id: 'debtors', label: 'Deudores', icon: UserCheck, roles: ['owner', 'admin', 'vendedor'] },
+    { id: 'users', label: 'Administración', icon: Users, roles: ['owner', 'admin'] },
     { id: 'logs', label: 'Logs', icon: ClipboardList, roles: ['owner', 'admin'] },
   ];
 
@@ -138,28 +140,38 @@ export default function Sidebar({
           className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-[#B23B23] transition-all"
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          {!isCollapsed && <span className="text-sm font-bold">Colapsar</span>}
+          {!isCollapsed && <span className="text-sm font-bold">Colapsar Menú</span>}
         </button>
 
         <button
           onClick={() => (onViewChange('change-password'))}
-          className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-[var(--color-warm-bg)] hover:text-[var(--color-primary)] rounded-2xl transition-all"
+          className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-[var(--color-warm-bg)] hover:text-[var(--color-primary)] rounded-2xl transition-all relative group"
         >
           <Key className="w-5 h-5 shrink-0" />
-          <span className="text-sm font-bold">Cambiar Contraseña</span>
+          {!isCollapsed && <span className="text-sm font-bold">Cambiar Contraseña</span>}
+          {isCollapsed && (
+            <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+              Cambiar Contraseña
+            </div>
+          )}
         </button>
 
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+          className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all relative group"
         >
           <LogOut className="w-5 h-5 shrink-0" />
-          <span className="text-sm font-bold">Cerrar Sesión</span>
+          {!isCollapsed && <span className="text-sm font-bold">Cerrar Sesión</span>}
+          {isCollapsed && (
+            <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+              Cerrar Sesión
+            </div>
+          )}
         </button>
         
         <div className="flex items-center gap-2">
-          
-          {currentUser && (!isCollapsed || isMobileOpen) && timeLeft !== undefined && (
+          {/* Timer hidden as requested */}
+          {false && currentUser && (!isCollapsed || isMobileOpen) && timeLeft !== undefined && (
             <div className="px-3 py-1 bg-gray-100 rounded-lg text-[10px] font-black font-mono text-gray-500">
               {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
             </div>

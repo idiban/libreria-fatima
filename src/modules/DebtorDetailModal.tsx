@@ -11,39 +11,34 @@ interface DebtorDetailModalProps {
 }
 
 export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, books }: DebtorDetailModalProps) {
-  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [debtData, setDebtData] = useState<{ history: any[], totalDebt: number }>({ history: [], totalDebt: 0 });
   const [loading, setLoading] = useState(true);
   const [amountToPay, setAmountToPay] = useState<number>(0);
   const [isPaying, setIsPaying] = useState(false);
 
-  const salesWithDebt = sales.filter(sale => (sale.total - sale.amountPaid) > 0);
-
   useEffect(() => {
-    const fetchSales = async () => {
+    const fetchDebtDetail = async () => {
       try {
-        const res = await fetch(`/api/sales/client/${client.id}`);
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.indexOf('application/json') !== -1) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setSales(data);
-          } else {
-            setSales([]);
-          }
-        } else {
-          setSales([]);
-        }
+        const res = await fetch(`/api/debts/client/${client.id}`);
+        const data = await res.json();
+        setDebtData(data);
       } catch (e) {
-        console.error(e);
+        console.error("Error al cargar detalle de deuda:", e);
       } finally {
         setLoading(false);
       }
     };
-    fetchSales();
+    fetchDebtDetail();
   }, [client.id]);
 
   const formatPrice = (price: number) => {
-    return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return Number(price).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const getDebtDate = (entry: any) => {
+    if (!entry.timestamp) return 'Fecha desconocida';
+    const date = new Date(entry.timestamp);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   };
 
   const handlePayment = async () => {
@@ -109,28 +104,48 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                 <div>
                   <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Compras con Deuda</h3>
                   <div className="space-y-3 max-h-60 overflow-y-auto pr-4 -mr-4">
-                    {salesWithDebt.length === 0 ? (
+                    {debtData.history.length === 0 ? (
                       <p className="text-center text-gray-500 text-sm py-4">No hay compras con deuda registradas.</p>
-                    ) : ( salesWithDebt.map(sale => (
-                      <div key={sale.id} className="p-4 bg-white border border-[var(--color-warm-surface)] rounded-2xl shadow-sm">
-                        <div className="flex justify-between items-center">
-                          <p className="font-bold text-sm">Venta del {new Date(sale.date).toLocaleDateString()}</p>
-                          <p className="font-black text-sm text-red-500">Deuda: ${formatPrice(sale.total - sale.amountPaid)}</p>
-                        </div>
-                        <ul className="mt-2 text-xs text-gray-500 space-y-2">
-                          {sale.items.map(item => {
-                            const book = books.find(b => b.id === item.bookId);
-                            return (
-                              <li key={item.bookId} className="flex items-center gap-3">
-                                <img src={book?.cover_url || 'https://via.placeholder.com/40x60'} alt={item.title} className="w-8 h-12 object-cover rounded-md bg-gray-100" />
-                                <div>
-                                  <p className="font-bold">{item.title} (x{item.quantity})</p>
-                                  <p>Valor: ${formatPrice(item.price * item.quantity)}</p>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
+                    ) : ( debtData.history.map((entry, idx) => (
+                      <div key={idx} className={`p-4 border rounded-2xl shadow-sm ${entry.type === 'payment' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-[var(--color-warm-surface)]'}`}>
+                        {entry.type === 'payment' ? (
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-sm text-emerald-900">{entry.label || 'Pago de deuda'}</p>
+                              <p className="text-[10px] font-medium text-emerald-600">{getDebtDate(entry)}</p>
+                            </div>
+                            <p className="font-black text-sm text-emerald-600">Pagó: ${formatPrice(entry.amount)}</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-bold text-sm">Compra del {getDebtDate(entry)}</p>
+                                {entry.total !== undefined && (
+                                  <div className="mt-1 space-y-0.5">
+                                    <p className="text-[10px] font-medium text-gray-400">Total: ${formatPrice(entry.total)}</p>
+                                    <p className="text-[10px] font-medium text-gray-400">Pagado: ${formatPrice(entry.amountPaid)}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="font-black text-sm text-red-500">Deuda: ${formatPrice(entry.amount)}</p>
+                            </div>
+                            <ul className="mt-2 text-xs text-gray-500 space-y-2">
+                              {entry.items?.map((item: any) => {
+                                const book = books.find(b => b.id === item.bookId);
+                                return (
+                                  <li key={item.bookId} className="flex items-center gap-3">
+                                    <img src={book?.cover_url || 'https://via.placeholder.com/40x60'} alt={item.title} className="w-8 h-12 object-cover rounded-md bg-gray-100" />
+                                    <div>
+                                      <p className="font-bold">{item.title} (x{item.quantity})</p>
+                                      <p>Valor: ${formatPrice(item.price * item.quantity)}</p>
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </>
+                        )}
                       </div>
                     )))}
                   </div>
@@ -143,7 +158,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                       <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
                         type="text"
-                        className="w-full pl-12 pr-4 py-4 bg-[var(--color-warm-bg)] border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-xl"
+                        className="w-full pl-12 pr-4 py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-xl"
                         value={amountToPay ? formatPrice(amountToPay) : ''}
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, '');
@@ -155,7 +170,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                     </div>
                     <button 
                       onClick={() => setAmountToPay(client.totalDebt)}
-                      className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)] hover:underline ml-1"
+                      className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                     >
                       Pagar todo
                     </button>
@@ -174,7 +189,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
           <div className="p-6 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-4">
             <button
               onClick={onClose}
-              className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
+              className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all flex items-center justify-center gap-2 shadow-sm"
             >
               Cancelar
             </button>

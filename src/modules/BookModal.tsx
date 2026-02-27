@@ -119,7 +119,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
 
       // MODIFICACIÓN 1: Prompt en inglés mucho más agresivo y redundante para garantizar cero relleno.
       // Específicamente instruimos que la portada/contraportada debe tocar exactamente los 4 bordes.
-      const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta el libro en la imagen. Corrige la perspectiva para que el libro se vea perfectamente recto, plano y rectangular (vista de escaneo). Amplía el libro de forma que ocupe el 100% exacto de la imagen, de borde a borde. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar el libro quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). No debe quedar ni un solo píxel del fondo original visible. Devuelve la imagen del libro perfectamente rectangular, rellenando todo el encuadre.`;
+      const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta la ${side === 'front' ? 'portada' : 'contraportada'} del libro en la imagen. Corrige la perspectiva para que se vea perfectamente recta, plana y rectangular (vista de escaneo). REGLA OBLIGATORIA: Amplía la ${side === 'front' ? 'portada' : 'contraportada'} al máximo posible de forma que ocupe el 100% exacto de la imagen, de borde a borde. Prohibido dejar márgenes gruesos alrededor. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). Devuelve la imagen perfectamente rectangular, rellenando todo el encuadre de forma gigante.`;
 
       try {
         const ai = new GoogleGenAI({ apiKey });
@@ -343,14 +343,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     setErrors(newErrors);
 
     if (newErrors.title || newErrors.author || newErrors.price || newErrors.stock || newErrors.category) {
-      const missing = [];
-      if (newErrors.title) missing.push("Título");
-      if (newErrors.author) missing.push("Autor");
-      if (newErrors.category) missing.push("Categoría");
-      if (newErrors.price) missing.push("Precio (debe ser mayor a 0)");
-      if (newErrors.stock) missing.push("Stock (debe ser mayor a 0)");
-      const msg = `Por favor completa los campos obligatorios: ${missing.join(", ")}`;
-      setValidationError(msg);
+      setValidationError("Complete los campos en rojo");
       return;
     }
 
@@ -410,7 +403,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -420,9 +413,9 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
           >
             <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
               {/* Header */}
-              <div className="p-6 sm:p-8 border-b border-[#FDF2F0] flex justify-between items-center bg-[#FFF9F5] shrink-0">
+              <div className="p-6 sm:p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-[#2D1A1A]">
+                  <h2 className="text-2xl sm:text-3xl font-black text-[var(--color-primary)]">
                     {editingBook ? 'Editar Libro' : 'Nuevo Libro'}
                   </h2>
                   <p className="text-gray-500 font-medium text-sm">Completa la información</p>
@@ -441,7 +434,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <div className="space-y-3">
                         <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
                         <div 
-                          className="aspect-[3/4] bg-[#FFF9F5] border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#B23B23] hover:bg-[#FDF2F0] transition-all overflow-hidden group relative"
+                          className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
                         >
                           {formData.cover_url ? (
                             <>
@@ -455,7 +448,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             </>
                           ) : (
                             <div className="flex flex-col items-center gap-2" onClick={() => frontInputRef.current?.click()}>
-                              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[#B23B23] shadow-sm">
+                              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
                                 <Upload className="w-6 h-6" />
                               </div>
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
@@ -465,7 +458,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             <button 
                               type="button"
                               onClick={(e) => { e.stopPropagation(); frontCameraRef.current?.click(); }}
-                              className="flex-1 py-2 bg-white/90 backdrop-blur-sm rounded-xl text-[#B23B23] hover:bg-[#B23B23] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                              className="flex-1 py-2 bg-white/90 backdrop-blur-sm rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
                             >
                               <Camera className="w-4 h-4" />
                             </button>
@@ -493,7 +486,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <div className="space-y-3">
                         <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
                         <div 
-                          className="aspect-[3/4] bg-[#FFF9F5] border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[#B23B23] hover:bg-[#FDF2F0] transition-all overflow-hidden group relative"
+                          className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
                         >
                           {formData.contraportada_url ? (
                             <>
@@ -507,7 +500,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             </>
                           ) : (
                             <div className="flex flex-col items-center gap-2" onClick={() => backInputRef.current?.click()}>
-                              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[#B23B23] shadow-sm">
+                              <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
                                 <Upload className="w-6 h-6" />
                               </div>
                               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
@@ -517,7 +510,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             <button 
                               type="button"
                               onClick={(e) => { e.stopPropagation(); backCameraRef.current?.click(); }}
-                              className="flex-1 py-2 bg-white/90 backdrop-blur-sm rounded-xl text-[#B23B23] hover:bg-[#B23B23] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                              className="flex-1 py-2 bg-white/90 backdrop-blur-sm rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
                             >
                               <Camera className="w-4 h-4" />
                             </button>
@@ -545,7 +538,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                     </div>
 
                     {isScanningFields ? (
-                      <div className="w-full py-4 bg-[#FDF2F0] text-[#B23B23] border-2 border-[#B23B23]/10 rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-xs sm:text-base">
+                      <div className="w-full py-4 bg-[var(--color-warm-surface)] text-[var(--color-primary)] border-2 border-[var(--color-primary)]/10 rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-xs sm:text-base">
                         <Loader2 className="w-5 h-5 animate-spin" />
                         Escaneando información del libro...
                       </div>
@@ -581,7 +574,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <input
                         type="text"
                         name="title"
-                        className={`w-full px-5 py-4 bg-[#FFF9F5] border-2 ${errors.title ? 'border-red-500' : 'border-transparent'} focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold`}
+                        className={`w-full px-5 py-4 bg-gray-100 border-2 ${errors.title ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-bold`}
                         value={formData.title}
                         onChange={(e) => {
                           handleInputChange(e);
@@ -599,7 +592,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <input
                         type="text"
                         name="author"
-                        className={`w-full px-5 py-4 bg-[#FFF9F5] border-2 ${errors.author ? 'border-red-500' : 'border-transparent'} focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold`}
+                        className={`w-full px-5 py-4 bg-gray-100 border-2 ${errors.author ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-bold`}
                         value={formData.author}
                         onChange={(e) => {
                           handleInputChange(e);
@@ -615,7 +608,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             ref={priceInputRef}
                             type="number"
                             name="price"
-                            className={`w-full pl-5 pr-12 py-4 bg-[#FFF9F5] border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[#B23B23] rounded-2xl outline-none transition-all font-black text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                            className={`w-full pl-5 pr-12 py-4 bg-gray-100 border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
                             value={formData.price}
                             onChange={(e) => {
                               handleInputChange(e);
@@ -623,8 +616,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             }}
                           />
                           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                            <button type="button" onClick={() => adjustPrice(1000)} className="p-1 hover:text-[#B23B23]"><ChevronUp className="w-4 h-4" /></button>
-                            <button type="button" onClick={() => adjustPrice(-1000)} className="p-1 hover:text-[#B23B23]"><ChevronDown className="w-4 h-4" /></button>
+                            <button type="button" onClick={() => adjustPrice(1000)} className="p-1 hover:text-[var(--color-primary)]"><ChevronUp className="w-4 h-4" /></button>
+                            <button type="button" onClick={() => adjustPrice(-1000)} className="p-1 hover:text-[var(--color-primary)]"><ChevronDown className="w-4 h-4" /></button>
                           </div>
                         </div>
                       </div>
@@ -633,7 +626,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <input
                           type="number"
                           name="stock"
-                          className={`w-full px-5 py-4 bg-[#FFF9F5] border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[#B23B23] rounded-2xl outline-none transition-all font-black text-xl`}
+                          className={`w-full px-5 py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-xl`}
                           value={formData.stock}
                           onChange={(e) => {
                             handleInputChange(e);
@@ -647,7 +640,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <input
                         type="text"
                         name="category"
-                        className={`w-full px-5 py-4 bg-[#FFF9F5] border-2 ${errors.category ? 'border-red-500' : 'border-transparent'} focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold`}
+                        className={`w-full px-5 py-4 bg-gray-100 border-2 ${errors.category ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-bold`}
                         value={formData.category}
                         onChange={(e) => {
                           handleInputChange(e);
@@ -660,7 +653,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <textarea
                         name="description"
                         rows={4}
-                        className="w-full px-5 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[#B23B23] rounded-2xl outline-none transition-all font-medium text-sm resize-none"
+                        className="w-full px-5 py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-medium text-sm resize-none"
                         value={formData.description}
                         onChange={handleInputChange}
                       />
@@ -670,7 +663,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
               </div>
 
               {/* Footer */}
-              <div className="p-6 sm:p-8 bg-[#FFF9F5] border-t border-[#FDF2F0] flex flex-col gap-4 shrink-0">
+              <div className="p-6 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex flex-col gap-4 shrink-0">
                 {validationError && (
                   <motion.div 
                     initial={{ opacity: 0, x: -10 }}
@@ -685,7 +678,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 hover:bg-gray-100 transition-all"
+                    className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"
                   >
                     Cancelar
                   </button>
@@ -720,13 +713,13 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl p-8 flex flex-col items-center text-center gap-6"
             >
-              <div className="w-16 h-16 bg-[#FFF9F5] rounded-2xl flex items-center justify-center text-[#B23B23]">
+              <div className="w-16 h-16 bg-[var(--color-warm-bg)] rounded-2xl flex items-center justify-center text-[var(--color-primary)]">
                 <BookOpen className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-xl font-black text-[#2D1A1A] mb-2">¿Confirmar Precio?</h3>
+                <h3 className="text-xl font-black text-gray-900 mb-2">¿Confirmar Precio?</h3>
                 <p className="text-gray-500 font-medium">
-                  Has ingresado un precio de <span className="text-[#B23B23] font-black">${formData.price.toLocaleString('es-CL')}</span>. 
+                  Has ingresado un precio de <span className="text-[var(--color-primary)] font-black">${formData.price.toLocaleString('es-CL')}</span>. 
                   ¿Estás seguro que este valor es correcto?
                 </p>
               </div>
@@ -745,7 +738,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                     setShowPriceConfirm(false);
                     executeSave();
                   }}
-                  className="flex-1 py-4 bg-[#B23B23] text-white rounded-xl font-black hover:bg-[#962D1A] transition-all shadow-lg shadow-[#B23B23]/20"
+                  className="flex-1 py-4 bg-[var(--color-primary)] text-white rounded-xl font-black hover:bg-[var(--color-primary-hover)] transition-all shadow-lg shadow-[var(--color-primary)]/20"
                 >
                   Sí, es correcto
                 </button>

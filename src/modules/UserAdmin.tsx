@@ -153,23 +153,24 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6 sm:space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tight mb-2 text-[#2D1A1A]">Administración de Usuarios</h2>
-          <p className="text-gray-500 font-medium">Gestiona los accesos y roles del sistema.</p>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[#2D1A1A]">Administración</h2>
+          <p className="text-sm sm:text-base text-gray-500 font-medium">Gestiona los accesos y roles del sistema.</p>
         </div>
         
         <button
           onClick={() => setIsUserModalOpen(true)}
-          className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all"
+          className="bg-[var(--color-primary)] text-white px-6 py-4 sm:py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all w-full sm:w-auto"
         >
           <Plus className="w-5 h-5" />
           Nuevo Usuario
         </button>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-[#FDF2F0] overflow-visible">
+      {/* Desktop Table View */}
+      <div className="hidden md:block bg-white rounded-[2.5rem] shadow-sm border border-[#FDF2F0] overflow-visible">
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-left border-collapse overflow-visible">
             <thead>
@@ -241,6 +242,64 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {allUsers.map((user) => (
+          <div key={user.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#FDF2F0] space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white font-bold">
+                  {user.username[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-bold text-[#2D1A1A]">{user.username}</p>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest mt-1 ${
+                    user.role === 'owner' ? 'bg-amber-100 text-amber-600' :
+                    user.role === 'admin' ? 'bg-purple-100 text-purple-600' :
+                    'bg-emerald-100 text-emerald-600'
+                  }`}>
+                    {user.role === 'owner' ? 'Dueño' : user.role === 'admin' ? 'Administrador' : user.role}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    setSelectedUserId(user.id);
+                    setIsAdminResetModalOpen(true);
+                  }}
+                  className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
+                >
+                  <Key className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingUser(user);
+                    setEditUserFormData({ username: user.username, role: user.role || 'vendedor' });
+                    setIsEditUserModalOpen(true);
+                  }}
+                  className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
+                >
+                  <Edit2 className="w-5 h-5" />
+                </button>
+                {user.role !== 'owner' && user.id !== currentUser.id && (
+                  <button
+                    onClick={() => {
+                      setUserToDelete(user.id);
+                      setIsDeleteModalOpen(true);
+                    }}
+                    className="p-3 bg-red-50 rounded-xl text-red-500"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Modals */}

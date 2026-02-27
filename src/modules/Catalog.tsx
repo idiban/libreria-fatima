@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Edit2, ShoppingCart, Plus, Search } from 'lucide-react';
+import { BookOpen, Edit2, ShoppingCart, Plus, Search, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem, UserProfile } from '../types';
 
@@ -30,20 +30,27 @@ export default function Catalog({
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
+  const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  };
+
   const filteredBooks = books.filter(book => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const title = book.title || '';
-    const author = book.author || '';
-    return title.toLowerCase().includes(lowerCaseSearchTerm) ||
-           author.toLowerCase().includes(lowerCaseSearchTerm);
+    const term = normalizeText(searchTerm);
+    return normalizeText(book.title).includes(term) || 
+           normalizeText(book.author).includes(term) ||
+           normalizeText(book.category).includes(term);
   });
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Nuestro Catálogo</h2>
-          <p className="text-gray-500 font-medium">Explora nuestra selección de libros disponibles.</p>
+          <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">
+            {currentUser ? 'Venta de Libros' : 'Nuestro Catálogo'}
+          </h2>
+          <p className="text-gray-500 font-medium">
+            {currentUser ? 'Selecciona un libro para venderlo' : 'Explora nuestra selección de libros disponibles.'}
+          </p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -51,11 +58,19 @@ export default function Catalog({
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por título o autor..."
-              className="pl-12 pr-6 py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
+              placeholder="Buscar por título, autor o categoría..."
+              className="pl-12 pr-10 py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
           
           {currentUser && (

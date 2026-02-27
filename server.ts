@@ -1,4 +1,5 @@
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
+import type { Request, Response, NextFunction } from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -38,7 +39,7 @@ function getFirestore() {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -197,48 +198,48 @@ async function startServer() {
       
       await firestore.runTransaction(async (transaction) => {
         // 1. READS
-        const bookDocs = [];
-        for (const item of items) {
-          const bookRef = firestore.collection("libros").doc(item.bookId);
-          const bookDoc = await transaction.get(bookRef);
-          if (!bookDoc.exists) throw new Error(`El libro ${item.title} no existe`);
-          bookDocs.push({ ref: bookRef, doc: bookDoc, item });
-        }
+        const bookRefs = items.map((item: any) => firestore.collection("libros").doc(item.bookId));
+        const bookDocs = await transaction.getAll(...bookRefs);
 
-        let clientDoc = null;
-        let clientRef = null;
-        if (clientId) {
-          clientRef = firestore.collection("clientes").doc(clientId);
-          clientDoc = await transaction.get(clientRef);
-        }
-
-        // 2. WRITES
-        for (const { ref, doc, item } of bookDocs) {
-          const currentStock = doc.data()?.stock || 0;
-
-          transaction.update(ref, { stock: Math.max(0, currentStock - item.quantity) });
+        for (let i = 0; i < bookDocs.length; i++) {
+          if (!bookDocs[i].exists) throw new Error(`El libro ${items[i].title} no existe`);
         }
 
         let finalClientId = clientId;
-        const debt = Number(total) - Number(amountPaid);
+        let clientRef;
 
-        if (!finalClientId) {
-          const newClientRef = firestore.collection("clientes").doc();
-          transaction.set(newClientRef, {
+        if (clientId) {
+          clientRef = firestore.collection("clientes").doc(clientId);
+        } else {
+          clientRef = firestore.collection("clientes").doc();
+          finalClientId = clientRef.id;
+        }
+        
+        const clientDoc = clientId ? await transaction.get(clientRef) : null;
+
+        // 2. WRITES
+        for (let i = 0; i < bookDocs.length; i++) {
+          const currentStock = bookDocs[i].data()?.stock || 0;
+          transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - items[i].quantity) });
+        }
+
+        const debtChange = Number(total) - Number(amountPaid);
+
+        if (!clientId) { // New client
+          transaction.set(clientRef, {
             name: clientName,
             name_lowercase: clientName.toLowerCase(),
-            totalDebt: debt,
+            totalDebt: debtChange,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
           });
-          finalClientId = newClientRef.id;
-        } else if (clientRef && clientDoc) {
+        } else if (clientDoc && clientDoc.exists) { // Existing client
           const currentDebt = clientDoc.data()?.totalDebt || 0;
           transaction.update(clientRef, { 
-            totalDebt: currentDebt + debt,
+            totalDebt: currentDebt + debtChange,
             name: clientName
           });
         }
-
+        
         const saleRef = firestore.collection("ventas").doc();
         const saleData = {
           items,
@@ -246,15 +247,11 @@ async function startServer() {
           clientName,
           total: Number(total),
           amountPaid: Number(amountPaid),
-          debt,
           sellerId,
           sellerName,
           timestamp: admin.firestore.FieldValue.serverTimestamp()
         };
         transaction.set(saleRef, saleData);
-
-        // We can't await logActivity inside transaction safely if it's not part of it,
-        // but since we just add a doc, we can do it after the transaction.
       });
 
       // Log Activity outside transaction to avoid retries duplicating logs
@@ -282,13 +279,165 @@ async function startServer() {
     }
   });
 
-  app.patch("/api/sales/:id", async (req, res) => {
+  app.put("/api/sales/:id", async (req, res) => {
     const firestore = getFirestore();
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
     try {
       const { id } = req.params;
-      const updates = req.body;
-      await firestore.collection("ventas").doc(id).update(updates);
+      const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
+      
+      await firestore.runTransaction(async (transaction) => {
+        const saleRef = firestore.collection("ventas").doc(id);
+        const saleDoc = await transaction.get(saleRef);
+        if (!saleDoc.exists) throw new Error("Venta no encontrada");
+        const oldSaleData = saleDoc.data()!;
+        
+        const oldBookIds = (oldSaleData.items || []).map((i: any) => i.bookId);
+        const newBookIds = (items || []).map((i: any) => i.bookId);
+        const allBookIds = Array.from(new Set([...oldBookIds, ...newBookIds]));
+        
+        const bookRefs = allBookIds.map(bookId => firestore.collection("libros").doc(bookId));
+        const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
+        const bookDocsMap = new Map();
+        bookDocs.forEach(doc => {
+          if (doc.exists) bookDocsMap.set(doc.id, doc);
+        });
+        
+        let oldClientRef = null;
+        let oldClientDoc = null;
+        if (oldSaleData.clientId) {
+          oldClientRef = firestore.collection("clientes").doc(oldSaleData.clientId);
+          oldClientDoc = await transaction.get(oldClientRef);
+        }
+        
+        let newClientRef = null;
+        let newClientDoc = null;
+        let finalClientId = clientId;
+        if (clientId) {
+          if (clientId === oldSaleData.clientId) {
+            newClientRef = oldClientRef;
+            newClientDoc = oldClientDoc;
+          } else {
+            newClientRef = firestore.collection("clientes").doc(clientId);
+            newClientDoc = await transaction.get(newClientRef);
+          }
+        } else {
+          newClientRef = firestore.collection("clientes").doc();
+          finalClientId = newClientRef.id;
+        }
+        
+        const stockChanges = new Map<string, number>();
+        for (const oldItem of (oldSaleData.items || [])) {
+          stockChanges.set(oldItem.bookId, (stockChanges.get(oldItem.bookId) || 0) + oldItem.quantity);
+        }
+        for (const newItem of (items || [])) {
+          stockChanges.set(newItem.bookId, (stockChanges.get(newItem.bookId) || 0) - newItem.quantity);
+        }
+        
+        for (const [bookId, change] of stockChanges.entries()) {
+          if (change !== 0) {
+            const doc = bookDocsMap.get(bookId);
+            if (doc) {
+              const currentStock = doc.data()?.stock || 0;
+              const ref = firestore.collection("libros").doc(bookId);
+              transaction.update(ref, { stock: Math.max(0, currentStock + change) });
+            }
+          }
+        }
+        
+        const oldDebt = (oldSaleData.total || 0) - (oldSaleData.amountPaid || 0);
+        const newDebt = Number(total) - Number(amountPaid);
+        
+        if (oldSaleData.clientId === finalClientId) {
+          if (oldClientRef && oldClientDoc && oldClientDoc.exists) {
+            const currentDebt = oldClientDoc.data()?.totalDebt || 0;
+            transaction.update(oldClientRef, { 
+              totalDebt: currentDebt - oldDebt + newDebt,
+              name: clientName
+            });
+          }
+        } else {
+          if (oldClientRef && oldClientDoc && oldClientDoc.exists) {
+            const currentDebt = oldClientDoc.data()?.totalDebt || 0;
+            transaction.update(oldClientRef, { totalDebt: currentDebt - oldDebt });
+          }
+          
+          if (!clientId) {
+            transaction.set(newClientRef, {
+              name: clientName,
+              name_lowercase: clientName.toLowerCase(),
+              totalDebt: newDebt,
+              createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+          } else if (newClientRef && newClientDoc && newClientDoc.exists) {
+            const currentDebt = newClientDoc.data()?.totalDebt || 0;
+            transaction.update(newClientRef, { 
+              totalDebt: currentDebt + newDebt,
+              name: clientName
+            });
+          }
+        }
+        
+        transaction.update(saleRef, {
+          items,
+          clientId: finalClientId,
+          clientName,
+          total: Number(total),
+          amountPaid: Number(amountPaid),
+          sellerId,
+          sellerName
+        });
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/api/sales/:id", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
+    try {
+      const { id } = req.params;
+      
+      await firestore.runTransaction(async (transaction) => {
+        const saleRef = firestore.collection("ventas").doc(id);
+        const saleDoc = await transaction.get(saleRef);
+        if (!saleDoc.exists) throw new Error("Venta no encontrada");
+        const saleData = saleDoc.data()!;
+        
+        const bookRefs = (saleData.items || []).map((item: any) => firestore.collection("libros").doc(item.bookId));
+        const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
+        
+        let clientRef = null;
+        let clientDoc = null;
+        if (saleData.clientId) {
+          clientRef = firestore.collection("clientes").doc(saleData.clientId);
+          clientDoc = await transaction.get(clientRef);
+        }
+        
+        for (let i = 0; i < bookDocs.length; i++) {
+          if (bookDocs[i].exists) {
+            const currentStock = bookDocs[i].data()?.stock || 0;
+            const item = saleData.items.find((item: any) => item.bookId === bookDocs[i].id);
+            if (item) {
+              transaction.update(bookRefs[i], { stock: currentStock + item.quantity });
+            }
+          }
+        }
+        
+        if (clientRef && clientDoc && clientDoc.exists) {
+          const currentDebt = clientDoc.data()?.totalDebt || 0;
+          const saleDebt = (saleData.total || 0) - (saleData.amountPaid || 0);
+          transaction.update(clientRef, { totalDebt: currentDebt - saleDebt });
+        }
+        
+        transaction.delete(saleRef);
+      });
+      
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
@@ -315,7 +464,99 @@ async function startServer() {
     }
 });
 
+  app.get("/api/debts/client/:clientId", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const { clientId } = req.params;
+      
+      const clientDoc = await firestore.collection("clientes").doc(clientId).get();
+      const totalDebt = clientDoc.exists ? (clientDoc.data()?.totalDebt || 0) : 0;
+
+      const salesSnapshot = await firestore.collection("ventas")
+        .where("clientId", "==", clientId)
+        .orderBy("timestamp", "desc")
+        .get();
+      
+      const sales = salesSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          type: 'sale',
+          ...data,
+          amount: (data.total || 0) - (data.amountPaid || 0),
+          timestamp: data.timestamp?.toDate()
+        };
+      }).filter(sale => sale.amount > 0);
+
+      const paymentsSnapshot = await firestore.collection("pagos")
+        .where("clientId", "==", clientId)
+        .orderBy("timestamp", "desc")
+        .get();
+
+      const payments = paymentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+
+      const history = [...sales, ...payments].sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      res.json({ totalDebt, history });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
   // API Routes - Clients
+  app.get("/api/clients/:id/history", async (req, res) => {
+    const firestore = getFirestore();
+    if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+    try {
+      const { id } = req.params;
+      
+      // Fetch all sales for this client
+      const salesSnapshot = await firestore.collection("ventas")
+        .where("clientId", "==", id)
+        .orderBy("timestamp", "desc")
+        .get();
+      
+      const sales = salesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        type: 'sale',
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+
+      // Fetch payments from 'pagos' collection
+      const paymentsSnapshot = await firestore.collection("pagos")
+        .where("clientId", "==", id)
+        .orderBy("timestamp", "desc")
+        .get();
+
+      const payments = paymentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate()
+      }));
+
+      // Merge and sort by timestamp
+      const history = [...sales, ...payments].sort((a, b) => {
+        const timeA = a.timestamp?.getTime() || 0;
+        const timeB = b.timestamp?.getTime() || 0;
+        return timeB - timeA;
+      });
+
+      res.json({ history });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
   app.get("/api/clients/suggest", async (req, res) => {
     const firestore = getFirestore();
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -330,7 +571,10 @@ async function startServer() {
       
       const suggestions = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as any))
-        .filter(client => normalizeUsername(client.name || '').includes(query))
+        .filter(client => {
+          const normalizedName = normalizeUsername(client.name || '');
+          return normalizedName.includes(query) || query.includes(normalizedName);
+        })
         .slice(0, 5);
         
       res.json(suggestions);
@@ -343,9 +587,25 @@ async function startServer() {
     const firestore = getFirestore();
     if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
     try {
-      const snapshot = await firestore.collection("clientes").get();
-      const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      res.json(clients);
+      const clientsSnapshot = await firestore.collection("clientes").get();
+      const clients = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      const salesSnapshot = await firestore.collection("ventas").get();
+      const itemsByClient = salesSnapshot.docs.reduce((acc, doc) => {
+        const sale = doc.data();
+        if (sale.clientId && Array.isArray(sale.items)) {
+          const totalItems = sale.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+          acc[sale.clientId] = (acc[sale.clientId] || 0) + totalItems;
+        }
+        return acc;
+      }, {} as { [key: string]: number });
+
+      const clientsWithItemCount = clients.map(client => ({
+        ...client,
+        totalItemsPurchased: itemsByClient[(client as any).id] || 0
+      }));
+
+      res.json(clientsWithItemCount);
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
     }
@@ -393,14 +653,17 @@ async function startServer() {
             const newDebt = currentDebt - amount;
             transaction.update(clientRef, { totalDebt: newDebt });
 
+            // No longer creating separate 'pagos' documents to reduce redundancy
+
+            // Actualizar la colección 'deudas'
+            // Create a payment document in 'pagos' collection
             const paymentRef = firestore.collection("pagos").doc();
             transaction.set(paymentRef, {
-                clientId: id,
-                clientName: clientDoc.data()?.name || 'N/A',
-                amountPaid: amount,
-                previousDebt: currentDebt,
-                newDebt: newDebt,
-                paymentDate: admin.firestore.FieldValue.serverTimestamp()
+              clientId: id,
+              clientName: clientDoc.data()?.name || 'N/A',
+              amount: amount,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              type: 'payment'
             });
         });
 

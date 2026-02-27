@@ -20,17 +20,20 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="max-w-5xl mx-auto"
+      className="min-h-full flex flex-col"
     >
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-gray-500 hover:text-[#B23B23] transition-colors mb-8 group"
-      >
-        <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-        <span className="font-bold">Volver al catálogo</span>
-      </button>
+      <div className="sticky top-0 z-30 bg-[var(--color-warm-bg)]/80 backdrop-blur-md py-4 px-6 sm:px-10 flex items-center shrink-0">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-gray-500 hover:text-[var(--color-primary)] transition-colors group"
+        >
+          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span className="font-bold">Volver al catálogo</span>
+        </button>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 bg-white rounded-[3rem] p-6 sm:p-8 shadow-xl border border-[#FDF2F0]">
+      <div className="flex-1 p-4 md:p-6 lg:p-10">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 bg-white rounded-[3rem] p-6 sm:p-8 shadow-xl border border-[#FDF2F0]">
         {/* Images Section */}
         <div className="space-y-6">
           <div className="aspect-[3/4] rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner md:w-3/4 lg:w-2/3 mx-auto">
@@ -64,27 +67,16 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
         <div className="flex flex-col">
           <div className="mb-8">
             {book.category && (
-              <span className="inline-block px-4 py-1.5 bg-[#FDF2F0] rounded-full text-xs font-black uppercase tracking-widest text-[#B23B23] mb-4">
+              <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">
                 {book.category}
               </span>
             )}
             <h1 className="text-3xl sm:text-4xl font-black text-[#2D1A1A] leading-tight mb-3 sm:mb-4">{book.title}</h1>
             <p className="text-lg text-gray-400 font-bold mb-4 sm:mb-6">{book.author}</p>
             
-          {currentUser && (
             <div className="flex items-center gap-6 mb-8">
-              <p className="text-4xl sm:text-5xl font-black text-[#B23B23]">${formatPrice(book.price)}</p>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${book.stock > 0 ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                  <span className="font-black text-sm uppercase tracking-widest text-gray-400">
-                    {book.stock > 0 ? 'En Stock' : 'Agotado'}
-                  </span>
-                </div>
-                <p className="text-xs font-bold text-gray-400 mt-1">{book.stock} unidades disponibles</p>
-              </div>
+              <p className="text-4xl sm:text-5xl font-black text-[var(--color-primary)]">${formatPrice(book.price)}</p>
             </div>
-          )}
           </div>
 
           <div className="flex-1 space-y-8">
@@ -110,6 +102,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
+  </motion.div>
   );
 }
