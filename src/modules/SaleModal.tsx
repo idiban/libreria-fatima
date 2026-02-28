@@ -63,9 +63,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   // El Total siempre debe ser el valor de la compra actual
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   
-  // Modificado: El total neto a pagar es solo el total de la compra. 
-  // La deuda/crédito previo se maneja en la lógica de pago pero no ensucia el precio del producto.
+  // Modificado: El total neto a pagar considera la deuda previa.
   const netTotalToPay = total + (selectedClientDebt || 0);
+  
+  // NUEVO: Cuánto efectivo real necesita entregar considerando su saldo a favor
+  const cashNeeded = Math.max(0, netTotalToPay - selectedClientCredit);
 
   const latestSearch = useRef<string>('');
 
@@ -202,8 +204,8 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       return;
     }
 
-    // Usamos el total actual para la validación del popup de saldo a favor
-    if (amountPaid > netTotalToPay && !showOverpayConfirm) {
+    // Usamos el cashNeeded (lo que falta por cubrir en efectivo) para validar si hay sobrepago
+    if (amountPaid > cashNeeded && !showOverpayConfirm) {
       setShowOverpayConfirm(true);
       return;
     }
@@ -316,10 +318,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                               setClientId(c.id);
                               setSelectedClientDebt(c.totalDebt || 0);
                               setSelectedClientCredit(c.creditBalance || 0);
-                              // Al seleccionar, si tiene crédito, sugerimos el pago total con su crédito
-                              if (c.creditBalance > 0) {
-                                setAmountPaid(c.creditBalance);
-                              }
+                              // NOTA: Eliminamos el auto-completado del monto a pagar aquí para no forzar efectivo extra.
                               setIsClientSelected(true);
                               setClientSuggestions([]);
                             }}
@@ -510,7 +509,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                     />
                   </div>
                   <button 
-                    onClick={() => setAmountPaid(netTotalToPay)}
+                    onClick={() => setAmountPaid(cashNeeded)}
                     className="mt-2 w-full py-3 sm:py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                   >
                     Saldar cuenta
@@ -518,20 +517,20 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                 </div>
                 <div className="flex justify-center items-center">
                   <div className={`w-full sm:w-auto rounded-2xl p-4 sm:p-3 sm:px-5 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
-                    amountPaid >= netTotalToPay
+                    (amountPaid + selectedClientCredit) >= netTotalToPay
                       ? 'bg-emerald-500 shadow-emerald-500/20' 
                       : 'bg-red-500 shadow-red-500/20'
                   }`}>
                     <p className="text-[10px] sm:text-[9px] font-black uppercase tracking-widest opacity-60">Total Venta</p>
                     <p className="text-2xl sm:text-2xl font-black">${formatPrice(netTotalToPay)}</p>
-                    {netTotalToPay - amountPaid > 0 && (
+                    {netTotalToPay - (amountPaid + selectedClientCredit) > 0 && (
                       <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg">
-                        Falta: ${formatPrice(netTotalToPay - amountPaid)}
+                        Falta: ${formatPrice(netTotalToPay - (amountPaid + selectedClientCredit))}
                       </p>
                     )}
-                    {amountPaid > netTotalToPay && (
+                    {amountPaid > cashNeeded && (
                       <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg text-emerald-100">
-                        A favor: ${formatPrice(amountPaid - netTotalToPay)}
+                        A favor: ${formatPrice(amountPaid - cashNeeded)}
                       </p>
                     )}
                   </div>
@@ -549,7 +548,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               </button>
               <button
                 onClick={handleFinalize}
-                disabled={isLoading || !amountPaid || amountPaid <= 0 || !clientName.trim()}
+                disabled={isLoading || amountPaid < 0 || !clientName.trim()}
                 className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -574,7 +573,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-10 text-center">
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6"><PiggyBank className="w-10 h-10 text-emerald-500" /></div>
               <h3 className="text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
-              <p className="text-gray-500 font-medium mb-8 leading-relaxed">¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountPaid - netTotalToPay)}</span> como saldo a favor para este cliente?</p>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed">¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountPaid - cashNeeded)}</span> como saldo a favor para este cliente?</p>
               <div className="flex flex-col gap-3">
                 <button onClick={executeFinalize} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Sí, guardar saldo</button>
                 <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black active:scale-95 transition-all">Corregir monto</button>
