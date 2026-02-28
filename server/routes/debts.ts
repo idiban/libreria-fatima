@@ -99,8 +99,17 @@ router.delete("/payment/:id", async (req, res) => {
       const clientDoc = await transaction.get(clientRef);
 
       if (clientDoc.exists) {
+        // Obtenemos los valores actuales de la base de datos
         const currentDebt = clientDoc.data()?.totalDebt || 0;
-        transaction.update(clientRef, { totalDebt: currentDebt + amount });
+        const currentCredit = clientDoc.data()?.creditBalance || 0;
+        
+        // Al eliminar un pago, la deuda NETA aumenta. Hacemos el balance de ambas partes:
+        const finalNetBalance = currentDebt - currentCredit + amount;
+
+        transaction.update(clientRef, { 
+          totalDebt: finalNetBalance > 0 ? finalNetBalance : 0,
+          creditBalance: finalNetBalance < 0 ? Math.abs(finalNetBalance) : 0
+        });
       }
 
       transaction.delete(paymentRef);

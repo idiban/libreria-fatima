@@ -72,19 +72,16 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const latestSearch = useRef<string>('');
 
-  // CORRECCIÓN: Ahora cuando el modal se abre, revisa si hay initialBook y resetea el carrito
   useEffect(() => {
     if (!isOpen) {
       setClientNameError(false);
       setShowOverpayConfirm(false);
     } else {
-      // Si el modal se abre, seteamos el carrito según si hay libro o no
       setItems(
         initialBook 
           ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] 
           : []
       );
-      // Limpiamos los datos del cliente por si se cerró una venta anterior a medias
       setClientName('');
       setClientId(null);
       setAmountPaid(0);
@@ -277,7 +274,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
           >
             {/* Header */}
-            <div className="p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)]">
+            <div className="p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
               <div>
                 <h2 className="text-3xl font-black text-[var(--color-primary)] leading-tight flex items-center gap-2">
                   <span>{clientName || 'Nueva Venta'}</span>
@@ -371,12 +368,24 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         </div>
                         <div className="flex-1">
                           <h4 className="font-bold text-sm leading-tight pr-8 sm:pr-0">{item.title}</h4>
-                          <div className="flex items-center gap-2 mt-1">
+                          
+                          {/* MODIFICACIÓN AQUÍ: Se agregó flex-wrap, el indicador de stock y la lógica ajustada */}
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
-                            {item.stock === 0 && !item.bookId.startsWith('custom_') && (
-                              <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">Sin Stock</span>
+                            
+                            {!item.bookId.startsWith('custom_') && (
+                              <span className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                Stock: {item.stock}
+                              </span>
+                            )}
+
+                            {(item.stock === 0 || item.quantity > item.stock) && !item.bookId.startsWith('custom_') && (
+                              <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
+                                Sin Stock
+                              </span>
                             )}
                           </div>
+
                         </div>
                       </div>
                       
@@ -558,7 +567,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             </div>
 
             {/* Footer */}
-            <div className="p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-4">
+            <div className="p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-4 shrink-0">
               <button
                 onClick={onClose}
                 className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 bg-white border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 shadow-sm"

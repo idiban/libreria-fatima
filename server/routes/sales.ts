@@ -252,16 +252,25 @@ router.delete("/:id", async (req, res) => {
       const saleData = saleDoc.data()!;
       
       const bookItems = (saleData.items || []).filter((item: any) => !item.bookId.startsWith('custom_'));
-      const bookRefs = bookItems.map((item: any) => firestore.collection("libros").doc(item.bookId));
+      
+      // PREVENCIÓN DE BUGS: Agrupar por ID único para no repetir operaciones en base de datos
+      const stockUpdates = new Map<string, number>();
+      for (const item of bookItems) {
+        stockUpdates.set(item.bookId, (stockUpdates.get(item.bookId) || 0) + Number(item.quantity));
+      }
+
+      const uniqueBookIds = Array.from(stockUpdates.keys());
+      const bookRefs = uniqueBookIds.map(bookId => firestore.collection("libros").doc(bookId));
       const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
       
+      // DEVOLVER EL DINERO Y AJUSTAR DEUDAS
       if (saleData.clientId) {
         const clientRef = firestore.collection("clientes").doc(saleData.clientId);
         const clientDoc = await transaction.get(clientRef);
         if (clientDoc.exists) {
-          const saleDebt = (saleData.total || 0) - (saleData.amountPaid || 0);
-          const curD = clientDoc.data().totalDebt || 0;
-          const curC = clientDoc.data().creditBalance || 0;
+          const saleDebt = Number(saleData.total || 0) - Number(saleData.amountPaid || 0);
+          const curD = Number(clientDoc.data().totalDebt || 0);
+          const curC = Number(clientDoc.data().creditBalance || 0);
           const finalB = curD - curC - saleDebt;
           transaction.update(clientRef, { 
             totalDebt: finalB > 0 ? finalB : 0, 
@@ -270,13 +279,16 @@ router.delete("/:id", async (req, res) => {
         }
       }
       
+      // REPOSICIÓN MATEMÁTICA DE STOCK ASEGURADA
       for (let i = 0; i < bookDocs.length; i++) {
         if (bookDocs[i].exists) {
-          const currentStock = (bookDocs[i].data() as any)?.stock || 0;
-          const item = bookItems.find((item: any) => item.bookId === bookDocs[i].id);
-          if (item) transaction.update(bookRefs[i], { stock: currentStock + item.quantity });
+          const bookId = bookDocs[i].id;
+          const currentStock = Number((bookDocs[i].data() as any)?.stock || 0);
+          const quantityToRestore = stockUpdates.get(bookId) || 0;
+          transaction.update(bookRefs[i], { stock: currentStock + quantityToRestore });
         }
       }
+      
       transaction.delete(saleRef);
     });
     res.json({ success: true });

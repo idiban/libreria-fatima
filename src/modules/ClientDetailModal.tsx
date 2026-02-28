@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Edit2, Check, Loader2, History, User, Search } from 'lucide-react';
+import { X, Edit2, Check, Loader2, History, User, Search, Trash2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRecord } from '../types';
 
@@ -16,6 +16,13 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
   const [history, setHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+
+  // ESTADOS PARA ACTUALIZACIÓN VISUAL INSTANTÁNEA
+  const [currentDebt, setCurrentDebt] = useState(client?.totalDebt || 0);
+  const [currentCredit, setCurrentCredit] = useState(client?.creditBalance || 0);
+
+  const [itemToDelete, setItemToDelete] = useState<{ id: string, type: string } | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -45,6 +52,51 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
       else alert("Error al actualizar");
     } catch (e) { alert("Error de conexión"); }
     finally { setIsSaving(false); }
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeletingItem(true);
+    try {
+      const endpoint = itemToDelete.type === 'payment'
+        ? `/api/debts/payment/${itemToDelete.id}`
+        : `/api/sales/${itemToDelete.id}`;
+
+      const res = await fetch(endpoint, { method: 'DELETE' });
+      
+      if (res.ok) {
+        // Encontrar el ítem antes de borrarlo para hacer la matemática instantánea
+        const deletedItem = history.find(h => h.id === itemToDelete.id);
+        
+        if (deletedItem) {
+          let netBalance = currentDebt - currentCredit;
+          if (itemToDelete.type === 'payment') {
+            netBalance += (deletedItem.amount || 0);
+          } else {
+            netBalance -= ((deletedItem.total || 0) - (deletedItem.amountPaid || 0));
+          }
+          setCurrentDebt(netBalance > 0 ? netBalance : 0);
+          setCurrentCredit(netBalance < 0 ? Math.abs(netBalance) : 0);
+        }
+
+        setHistory(prev => prev.filter(h => h.id !== itemToDelete.id));
+        onUpdate(); 
+
+        // ---> ¡NUEVO! Avisar a la app que el stock de libros cambió <---
+        if (itemToDelete.type !== 'payment') {
+          window.dispatchEvent(new Event('stockUpdated'));
+        }
+
+      } else {
+        const err = await res.json();
+        alert(`Error al eliminar: ${err.error || 'Problema desconocido'}`);
+      }
+    } catch (e) {
+      alert("Error de red al intentar eliminar.");
+    } finally {
+      setIsDeletingItem(false);
+      setItemToDelete(null);
+    }
   };
 
   const formatPrice = (price: number) => Number(price || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -90,13 +142,13 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
           <div className="flex-1 overflow-y-auto p-6 sm:p-8">
             <div className="space-y-8">
               <div className="grid grid-cols-2 gap-4">
-                <div className={`p-4 rounded-2xl border ${client?.creditBalance > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${client?.creditBalance > 0 ? 'text-emerald-600' : 'text-gray-600'}`}>Saldo a Favor</p>
-                  <p className={`text-xl font-black ${client?.creditBalance > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>${formatPrice(client?.creditBalance || 0)}</p>
+                <div className={`p-4 rounded-2xl border ${currentCredit > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentCredit > 0 ? 'text-emerald-600' : 'text-gray-600'}`}>Saldo a Favor</p>
+                  <p className={`text-xl font-black ${currentCredit > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>${formatPrice(currentCredit)}</p>
                 </div>
-                <div className={`p-4 rounded-2xl border ${client?.totalDebt > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
-                  <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${client?.totalDebt > 0 ? 'text-red-600' : 'text-gray-600'}`}>Deuda Actual</p>
-                  <p className={`text-xl font-black ${client?.totalDebt > 0 ? 'text-red-700' : 'text-gray-700'}`}>${formatPrice(client?.totalDebt > 0 ? client.totalDebt : 0)}</p>
+                <div className={`p-4 rounded-2xl border ${currentDebt > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+                  <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentDebt > 0 ? 'text-red-600' : 'text-gray-600'}`}>Deuda Actual</p>
+                  <p className={`text-xl font-black ${currentDebt > 0 ? 'text-red-700' : 'text-gray-700'}`}>${formatPrice(currentDebt)}</p>
                 </div>
               </div>
 
@@ -110,8 +162,20 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                     {filteredHistory.map((entry, idx) => (
                       <div key={idx} className={`p-5 rounded-[2rem] border shadow-sm transition-all ${entry.type === 'payment' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-[var(--color-warm-surface)]'}`}>
                         <div className="flex justify-between items-start mb-3">
-                          <div><p className={`font-black text-sm ${entry.type === 'payment' ? 'text-emerald-900' : 'text-[var(--color-primary)]'}`}>{entry.type === 'payment' ? 'Abono / Pago' : 'Compra Realizada'}</p><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getDebtDate(entry)}</p></div>
-                          <p className={`font-black text-lg ${entry.type === 'payment' ? 'text-emerald-600' : 'text-gray-600'}`}>${formatPrice(entry.type === 'payment' ? entry.amount : (entry.total || entry.amount))}</p>
+                          <div>
+                            <p className={`font-black text-sm ${entry.type === 'payment' ? 'text-emerald-900' : 'text-[var(--color-primary)]'}`}>{entry.type === 'payment' ? 'Abono / Pago' : 'Compra Realizada'}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getDebtDate(entry)}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <p className={`font-black text-lg ${entry.type === 'payment' ? 'text-emerald-600' : 'text-gray-600'}`}>${formatPrice(entry.type === 'payment' ? entry.amount : (entry.total || entry.amount))}</p>
+                            <button
+                              onClick={() => setItemToDelete({ id: entry.id, type: entry.type })}
+                              className="p-1.5 sm:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Eliminar registro"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                         {entry.items?.length > 0 && (
                           <div className="pt-3 border-t border-gray-100">
@@ -136,6 +200,40 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
           <div className="p-6 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] shrink-0"><button onClick={onClose} className="w-full py-4 px-6 rounded-2xl font-black text-gray-400 bg-white border hover:bg-gray-50 transition-all shadow-sm">Cerrar</button></div>
         </motion.div>
       </div>
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !isDeletingItem && setItemToDelete(null)} />
+          <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden p-8 text-center">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-black mb-2 text-gray-900">¿Eliminar Registro?</h3>
+            <p className="text-gray-500 text-sm mb-6">
+              {itemToDelete.type === 'payment'
+                ? 'El dinero de este pago se sumará nuevamente a la deuda del cliente.'
+                : 'Esta acción restaurará el stock de los libros y ajustará la deuda del cliente.'}
+            </p>
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={confirmDelete} 
+                disabled={isDeletingItem} 
+                className="w-full py-3 sm:py-4 bg-red-500 hover:bg-red-600 transition-colors text-white rounded-xl font-black shadow-lg shadow-red-500/20 flex justify-center items-center gap-2 disabled:opacity-50"
+              >
+                {isDeletingItem ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sí, Eliminar'}
+              </button>
+              <button 
+                onClick={() => setItemToDelete(null)} 
+                disabled={isDeletingItem} 
+                className="w-full py-3 sm:py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-gray-500 rounded-xl font-black disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 }

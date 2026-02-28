@@ -122,6 +122,8 @@ router.post("/:id/pay", async (req, res) => {
           return res.status(400).json({ error: "Monto de pago inválido." });
       }
 
+      let clientNameLog = 'N/A';
+
       await firestore.runTransaction(async (transaction) => {
           const clientRef = firestore.collection("clientes").doc(id);
           const clientDoc = await transaction.get(clientRef);
@@ -130,31 +132,40 @@ router.post("/:id/pay", async (req, res) => {
               throw new Error("Cliente no encontrado.");
           }
 
-          const currentDebt = clientDoc.data()?.totalDebt || 0;
-          if (amount > currentDebt) {
-              throw new Error("El monto del pago no puede ser mayor a la deuda total.");
-          }
+          const clientData = clientDoc.data()!;
+          clientNameLog = clientData.name || 'N/A';
 
-          const newDebt = currentDebt - amount;
-          transaction.update(clientRef, { totalDebt: newDebt });
+          const currentDebt = clientData.totalDebt || 0;
+          const currentCredit = clientData.creditBalance || 0;
+
+          const finalNetBalance = currentDebt - currentCredit - amount;
+
+          transaction.update(clientRef, { 
+              totalDebt: finalNetBalance > 0 ? finalNetBalance : 0,
+              creditBalance: finalNetBalance < 0 ? Math.abs(finalNetBalance) : 0
+          });
 
           const paymentRef = firestore.collection("pagos").doc();
           transaction.set(paymentRef, {
             clientId: id,
-            clientName: clientDoc.data()?.name || 'N/A',
+            clientName: clientNameLog,
             amount: amount,
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             type: 'payment'
           });
       });
 
-      const userCookie = req.cookies.user;
+      const userCookie = req.cookies?.user;
       if (userCookie) {
-          const user = JSON.parse(userCookie);
-          await logActivity(user.id, user.username, "DEBT_PAYMENT", {
-              clientId: id,
-              amountPaid: amount
-          });
+          try {
+              const user = JSON.parse(userCookie);
+              await logActivity(user.id, user.username, "DEBT_PAYMENT", {
+                  clientId: id,
+                  amountPaid: amount
+              });
+          } catch (e) {
+              console.error("Error parsing user cookie for logging:", e);
+          }
       }
 
       res.json({ success: true, message: "Pago procesado correctamente." });

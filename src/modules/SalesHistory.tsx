@@ -96,52 +96,59 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
             </div>
           ))
         ) : filteredSales.length > 0 ? (
-          filteredSales.map((sale) => (
-            <motion.div
-              layout
-              key={sale.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => setSelectedSale(sale)}
-              className="bg-white p-5 rounded-[2rem] shadow-sm border border-transparent hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-[var(--color-warm-bg)] rounded-2xl flex items-center justify-center text-[var(--color-primary)] shrink-0 group-hover:scale-110 transition-transform">
-                  <Calendar className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-[var(--color-primary)] leading-tight">{formatDate(sale.timestamp)}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <User className="w-3 h-3 text-gray-400" />
-                    <p className="text-xs text-gray-500 font-medium">{sale.clientName}</p>
+          filteredSales.map((sale) => {
+            const balance = (sale.total ?? 0) - (sale.amountPaid ?? 0);
+            const isFavor = balance < 0;
+
+            return (
+              <motion.div
+                layout
+                key={sale.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => setSelectedSale(sale)}
+                className="bg-white p-5 rounded-[2rem] shadow-sm border border-transparent hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-[var(--color-warm-bg)] rounded-2xl flex items-center justify-center text-[var(--color-primary)] shrink-0 group-hover:scale-110 transition-transform">
+                    <Calendar className="w-6 h-6" />
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="w-3 h-3 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-[6px] font-bold">
-                      {sale.sellerName ? sale.sellerName[0].toUpperCase() : '?'}
+                  <div>
+                    <h3 className="font-bold text-[var(--color-primary)] leading-tight">{formatDate(sale.timestamp)}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <User className="w-3 h-3 text-gray-400" />
+                      <p className="text-xs text-gray-500 font-medium">{sale.clientName}</p>
                     </div>
-                    <p className="text-[10px] text-gray-400 font-medium">Vendedor: {sale.sellerName}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="w-3 h-3 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-[6px] font-bold">
+                        {sale.sellerName ? sale.sellerName[0].toUpperCase() : '?'}
+                      </div>
+                      <p className="text-[10px] text-gray-400 font-medium">Vendedor: {sale.sellerName}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center gap-4 sm:gap-8 bg-gray-50 p-3 rounded-2xl sm:bg-transparent sm:p-0">
-                <div className="flex-1 sm:flex-none">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total</p>
-                  <p className="font-black text-[var(--color-primary)]">${formatPrice(sale.total ?? 0)}</p>
+                
+                <div className="flex items-center gap-4 sm:gap-8 bg-gray-50 p-3 rounded-2xl sm:bg-transparent sm:p-0">
+                  <div className="flex-1 sm:flex-none">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total</p>
+                    <p className="font-black text-[var(--color-primary)]">${formatPrice(sale.total ?? 0)}</p>
+                  </div>
+                  <div className="flex-1 sm:flex-none">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pagado</p>
+                    <p className="font-black text-emerald-600">${formatPrice(sale.amountPaid ?? 0)}</p>
+                  </div>
+                  <div className="flex-1 sm:flex-none">
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isFavor ? 'text-emerald-600' : 'text-gray-400'}`}>
+                      {isFavor ? 'A favor' : 'Deuda'}
+                    </p>
+                    <p className={`font-black ${isFavor ? 'text-emerald-500' : balance > 0 ? 'text-red-500' : 'text-gray-300'}`}>
+                      ${formatPrice(Math.abs(balance))}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 sm:flex-none">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pagado</p>
-                  <p className="font-black text-emerald-600">${formatPrice(sale.amountPaid ?? 0)}</p>
-                </div>
-                <div className="flex-1 sm:flex-none">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Deuda</p>
-                  <p className={`font-black ${((sale.total ?? 0) - (sale.amountPaid ?? 0)) > 0 ? 'text-red-500' : 'text-gray-300'}`}>
-                    ${formatPrice((sale.total ?? 0) - (sale.amountPaid ?? 0))}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          ))
+              </motion.div>
+            );
+          })
         ) : (
           <div className="text-center py-12 bg-white rounded-[2rem] border border-dashed border-gray-200">
             <History className="w-12 h-12 text-gray-300 mx-auto mb-3" />

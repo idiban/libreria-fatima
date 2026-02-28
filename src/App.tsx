@@ -34,7 +34,7 @@ export default function App() {
   // Selection State
   const [selectedBook, setSelectedBook] = useState<BookItem | null>(null);
 
-  // Handle Browser Back Button for All Views (Esto hace que el botón físico del celular funcione)
+  // Handle Browser Back Button for All Views
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state) {
@@ -48,7 +48,6 @@ export default function App() {
           setSelectedBook(null);
         }
       } else {
-        // Default state (initial load)
         setActiveView('catalog');
         setSelectedBook(null);
       }
@@ -63,7 +62,6 @@ export default function App() {
     setSelectedBook(book);
     
     const state = { view, bookId: book?.id };
-    // Avoid pushing duplicate states
     if (JSON.stringify(window.history.state) !== JSON.stringify(state)) {
       window.history.pushState(state, '');
     }
@@ -73,7 +71,6 @@ export default function App() {
     navigateTo('catalog', book);
   };
 
-  // Usamos el historial del navegador para que el botón de la pantalla haga lo mismo que el botón del celular
   const handleBackToCatalog = () => {
     if (window.history.length > 1) {
       window.history.back();
@@ -88,13 +85,13 @@ export default function App() {
   // Modals
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
-  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false); // <-- ESTADO AGREGADO
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   
   // Admin Data
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   
   // Session Timer
-  const [timeLeft, setTimeLeft] = useState(3600); // 60 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(3600);
 
   const resetTimer = useCallback(() => {
     setTimeLeft(3600);
@@ -172,10 +169,24 @@ export default function App() {
     } catch (e) {}
   }, []);
 
+  // --- ESTE ES EL USEEFFECT MODIFICADO ---
   useEffect(() => {
     fetchBooks();
     checkAuth();
+
+    // NUEVO: Escuchar el evento personalizado 'stockUpdated'
+    const handleStockUpdate = () => {
+      fetchBooks();
+    };
+
+    window.addEventListener('stockUpdated', handleStockUpdate);
+
+    // Limpieza al desmontar
+    return () => {
+      window.removeEventListener('stockUpdated', handleStockUpdate);
+    };
   }, [fetchBooks, checkAuth]);
+  // ----------------------------------------
 
   useEffect(() => {
     if (activeView === 'users') fetchUsers();
@@ -201,14 +212,12 @@ export default function App() {
   };
 
   const renderView = () => {
-    // PROTECCIÓN ROBUSTA: Si no hay usuario activo, cualquier intento de ver una vista protegida 
-    // mediante el botón 'atrás' del navegador lo devuelve inmediatamente al catálogo.
     const safeView = (!currentUser && activeView !== 'catalog') ? 'catalog' : activeView;
 
     switch (safeView) {
       case 'change-password':
         setIsChangePasswordModalOpen(true);
-        setActiveView('catalog'); // Fallback to a default view
+        setActiveView('catalog'); 
         break;
       case 'catalog':
         if (selectedBook) {
@@ -219,7 +228,7 @@ export default function App() {
               currentUser={currentUser}
               onSaleClick={(book) => {
                 setSaleBook(book);
-                setIsSaleModalOpen(true); // <-- ABRE EL MODAL
+                setIsSaleModalOpen(true);
               }}
             />
           );
@@ -241,7 +250,7 @@ export default function App() {
             }}
             onSaleClick={(book) => {
               setSaleBook(book);
-              setIsSaleModalOpen(true); // <-- ABRE EL MODAL
+              setIsSaleModalOpen(true);
             }}
             onBookClick={handleBookClick}
           />
@@ -352,13 +361,12 @@ export default function App() {
         books={books}
       />
 
-      {/* MODIFICADO: Usa isSaleModalOpen para controlar si se muestra o no */}
       {currentUser && (
         <SaleModal 
           isOpen={isSaleModalOpen}
           onClose={() => {
             setIsSaleModalOpen(false);
-            setSaleBook(null); // Limpiamos el libro seleccionado al cerrar
+            setSaleBook(null); 
           }}
           initialBook={saleBook}
           currentUser={currentUser}

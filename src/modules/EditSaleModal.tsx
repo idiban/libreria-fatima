@@ -214,6 +214,7 @@ export default function EditSaleModal({ isOpen, onClose, sale, currentUser, onSa
 
       if (response.ok) {
         onSaleSuccess();
+        window.dispatchEvent(new Event('stockUpdated')); // <-- EL GRITO AL GUARDAR EDICIÓN
         onClose();
       } else {
         const err = await response.json();
@@ -234,6 +235,7 @@ export default function EditSaleModal({ isOpen, onClose, sale, currentUser, onSa
       });
       if (response.ok) {
         onSaleSuccess();
+        window.dispatchEvent(new Event('stockUpdated')); // <-- EL GRITO AL ELIMINAR VENTA
         onClose();
       } else {
         const err = await response.json();
@@ -350,12 +352,23 @@ export default function EditSaleModal({ isOpen, onClose, sale, currentUser, onSa
                         </div>
                         <div className="flex-1">
                           <h4 className="font-bold text-sm leading-tight pr-8 sm:pr-0">{item.title}</h4>
-                          <div className="flex items-center gap-2 mt-1">
+                          
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
-                            {item.stock === 0 && !item.bookId.startsWith('custom_') && (
-                              <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">Sin Stock</span>
+                            
+                            {!item.bookId.startsWith('custom_') && (
+                              <span className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                Stock: {item.stock}
+                              </span>
+                            )}
+
+                            {(item.stock === 0 || item.quantity > item.stock) && !item.bookId.startsWith('custom_') && (
+                              <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
+                                Sin Stock
+                              </span>
                             )}
                           </div>
+
                         </div>
                       </div>
                       

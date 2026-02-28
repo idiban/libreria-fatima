@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Loader2, Check, Trash2, AlertTriangle } from 'lucide-react';
+import { X, DollarSign, Loader2, Check, Trash2, AlertTriangle, PiggyBank } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRecord, SaleRecord, BookItem } from '../types';
 
@@ -18,6 +18,9 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
   
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
+  
+  // NUEVO: Estado para el popup de sobrepago
+  const [showOverpayConfirm, setShowOverpayConfirm] = useState(false);
 
   useEffect(() => {
     const fetchDebtDetail = async () => {
@@ -59,14 +62,12 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
   };
 
-  // Lógica para filtrar solo la deuda "viva" (actual)
   const getActiveHistory = () => {
     if (debtData.totalDebt <= 0) return [];
     
     let runningBalance = 0;
     let lastZeroIndex = -1;
 
-    // Ordenamos por fecha para calcular el balance correctamente
     const sortedHistory = [...debtData.history].sort((a, b) => {
       const timeA = a.timestamp?.seconds || new Date(a.timestamp).getTime();
       const timeB = b.timestamp?.seconds || new Date(b.timestamp).getTime();
@@ -80,13 +81,11 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
         runningBalance += (entry.total - (entry.amountPaid || 0));
       }
       
-      // Si en este punto la deuda se saldó por completo, marcamos el nuevo punto de inicio
       if (runningBalance <= 0) {
         lastZeroIndex = index;
       }
     });
 
-    // Solo mostramos lo que ocurrió después del último momento en que la deuda fue 0
     return sortedHistory.slice(lastZeroIndex + 1).reverse();
   };
 
@@ -128,8 +127,20 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
     }
   };
 
+  // NUEVO: Verificación antes de ejecutar el pago
   const handlePayment = async () => {
     if (amountToPay <= 0) return;
+
+    if (amountToPay > client.totalDebt && !showOverpayConfirm) {
+      setShowOverpayConfirm(true);
+      return;
+    }
+
+    executePayment();
+  };
+
+  // NUEVO: Ejecución real del pago separada
+  const executePayment = async () => {
     setIsPaying(true);
     try {
       const response = await fetch(`/api/clients/${client.id}/pay`, {
@@ -152,6 +163,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
       alert('Error al procesar el pago');
     } finally {
       setIsPaying(false);
+      setShowOverpayConfirm(false);
     }
   };
 
@@ -280,9 +292,8 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                         value={amountToPay ? formatPrice(amountToPay) : ''}
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, '');
-                          let num = Number(val);
-                          if (num > client.totalDebt) num = client.totalDebt;
-                          setAmountToPay(num);
+                          setAmountToPay(Number(val)); 
+                          // SE ELIMINÓ EL LÍMITE: if (num > client.totalDebt)
                         }}
                       />
                     </div>
@@ -290,13 +301,30 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                       onClick={() => setAmountToPay(client.totalDebt)}
                       className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                     >
-                      Pagar todo
+                      Pagar deuda actual
                     </button>
                   </div>
                   <div className="flex justify-center sm:justify-end items-center h-full">
-                    <div className={`w-full sm:w-auto rounded-2xl p-4 flex flex-col justify-center items-center text-white shadow-xl bg-red-500 shadow-red-500/20`}>
+                    {/* MODIFICADO: Caja dinámica igual a SalesModal */}
+                    <div className={`w-full sm:w-auto rounded-2xl p-4 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
+                      amountToPay >= client.totalDebt
+                        ? 'bg-emerald-500 shadow-emerald-500/20' 
+                        : 'bg-red-500 shadow-red-500/20'
+                    }`}>
                       <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Deuda Total</p>
                       <p className="text-3xl font-black">${formatPrice(client.totalDebt)}</p>
+                      
+                      {client.totalDebt - amountToPay > 0 && amountToPay > 0 && (
+                        <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 rounded-lg">
+                          Falta: ${formatPrice(client.totalDebt - amountToPay)}
+                        </p>
+                      )}
+                      
+                      {amountToPay > client.totalDebt && (
+                        <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 rounded-lg text-emerald-100">
+                          A favor: ${formatPrice(amountToPay - client.totalDebt)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -368,6 +396,32 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
           </motion.div>
         </div>
       )}
+      
+      {/* NUEVO: Popup de Confirmación PiggyBank para Saldos a Favor en Pagos */}
+      <AnimatePresence>
+        {showOverpayConfirm && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowOverpayConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-10 text-center">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <PiggyBank className="w-10 h-10 text-emerald-500" />
+              </div>
+              <h3 className="text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed">
+                ¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountToPay - client.totalDebt)}</span> como saldo a favor para este cliente?
+              </p>
+              <div className="flex flex-col gap-3">
+                <button onClick={executePayment} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
+                  Sí, guardar saldo
+                </button>
+                <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black active:scale-95 transition-all">
+                  Corregir monto
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
