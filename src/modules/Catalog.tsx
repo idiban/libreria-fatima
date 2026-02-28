@@ -11,7 +11,7 @@ interface CatalogProps {
   currentUser: UserProfile | null;
   onEditBook: (book: BookItem) => void;
   onAddBook: () => void;
-  onSaleClick: (book: BookItem) => void;
+  onSaleClick: (book: BookItem | null) => void;
   onBookClick: (book: BookItem) => void;
 }
 
@@ -49,11 +49,11 @@ export default function Catalog({
             {currentUser ? 'Venta de Libros' : 'Nuestro Catálogo'}
           </h2>
           <p className="text-gray-500 font-medium">
-            {currentUser ? 'Selecciona un libro para venderlo' : 'Explora nuestra selección de libros disponibles.'}
+            {currentUser ? 'Selecciona un libro para venderlo o inicia una venta nueva' : 'Explora nuestra selección de libros disponibles.'}
           </p>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -74,13 +74,22 @@ export default function Catalog({
           </div>
           
           {currentUser && (
-            <button
-              onClick={onAddBook}
-              className="bg-[var(--color-primary)] text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all shrink-0"
-            >
-              <Plus className="w-5 h-5" />
-              <span className="hidden sm:inline">Añadir Libro</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onSaleClick(null)}
+                className="bg-[var(--color-primary)] text-white px-4 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex-1 sm:flex-none text-sm"
+              >
+                <ShoppingCart className="w-5 h-5 shrink-0" />
+                <span>Vender</span>
+              </button>
+              <button
+                onClick={onAddBook}
+                className="bg-[var(--color-primary)] text-white px-4 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex-1 sm:flex-none text-sm"
+              >
+                <Plus className="w-5 h-5 shrink-0" />
+                <span>Añadir Libro</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

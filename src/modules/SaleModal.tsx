@@ -19,7 +19,7 @@ import { GoogleGenAI } from "@google/genai";
 interface SaleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialBook: BookItem;
+  initialBook: BookItem | null;
   currentUser: UserProfile;
   onSaleSuccess: () => void;
 }
@@ -28,9 +28,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
-  const [items, setItems] = useState<SaleItem[]>([
-    { bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }
-  ]);
+  
+  const [items, setItems] = useState<SaleItem[]>(
+    initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []
+  );
+  
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
   const [bookSearchTerm, setBookSearchTerm] = useState('');
@@ -46,7 +48,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [showCustomItemForm, setShowCustomItemForm] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
-  
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -71,12 +72,28 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const latestSearch = useRef<string>('');
 
+  // CORRECCIÓN: Ahora cuando el modal se abre, revisa si hay initialBook y resetea el carrito
   useEffect(() => {
     if (!isOpen) {
       setClientNameError(false);
       setShowOverpayConfirm(false);
+    } else {
+      // Si el modal se abre, seteamos el carrito según si hay libro o no
+      setItems(
+        initialBook 
+          ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] 
+          : []
+      );
+      // Limpiamos los datos del cliente por si se cerró una venta anterior a medias
+      setClientName('');
+      setClientId(null);
+      setAmountPaid(0);
+      setSelectedClientDebt(null);
+      setSelectedClientCredit(0);
+      setIsClientSelected(false);
+      setBookSearchTerm('');
     }
-  }, [isOpen]);
+  }, [isOpen, initialBook]);
 
   useEffect(() => {
     if (clientName.length > 1 && !isClientSelected) {
@@ -194,7 +211,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   };
 
   const removeItem = (bookId: string) => {
-    if (items.length === 1) return;
     setItems(prev => prev.filter(i => i.bookId !== bookId));
   };
 
@@ -204,7 +220,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       return;
     }
 
-    // Usamos el cashNeeded (lo que falta por cubrir en efectivo) para validar si hay sobrepago
     if (amountPaid > cashNeeded && !showOverpayConfirm) {
       setShowOverpayConfirm(true);
       return;
@@ -224,7 +239,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           clientId,
           clientName,
           amountPaid,
-          total, // Valor de la compra
+          total, 
           sellerId: currentUser.id,
           sellerName: currentUser.username
         })
@@ -318,7 +333,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                               setClientId(c.id);
                               setSelectedClientDebt(c.totalDebt || 0);
                               setSelectedClientCredit(c.creditBalance || 0);
-                              // NOTA: Eliminamos el auto-completado del monto a pagar aquí para no forzar efectivo extra.
                               setIsClientSelected(true);
                               setClientSuggestions([]);
                             }}
@@ -338,6 +352,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               <div className="space-y-4">
                 <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Productos</label>
                 <div className="space-y-3">
+                  {items.length === 0 && (
+                    <p className="text-sm font-bold text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-4 text-center">
+                      El carrito está vacío. Agrega libros o artículos.
+                    </p>
+                  )}
                   {items.map((item) => (
                     <div key={item.bookId} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-white border border-[var(--color-warm-surface)] rounded-2xl shadow-sm relative">
                       <div className="flex items-center gap-4 flex-1">
@@ -548,7 +567,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               </button>
               <button
                 onClick={handleFinalize}
-                disabled={isLoading || amountPaid < 0 || !clientName.trim()}
+                disabled={isLoading || amountPaid < 0 || !clientName.trim() || items.length === 0} 
                 className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 {isLoading ? (

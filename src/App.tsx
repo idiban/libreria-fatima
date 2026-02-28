@@ -88,6 +88,7 @@ export default function App() {
   // Modals
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false); // <-- ESTADO AGREGADO
   
   // Admin Data
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -216,7 +217,10 @@ export default function App() {
               book={selectedBook} 
               onBack={handleBackToCatalog} 
               currentUser={currentUser}
-              onSaleClick={(book) => setSaleBook(book)}
+              onSaleClick={(book) => {
+                setSaleBook(book);
+                setIsSaleModalOpen(true); // <-- ABRE EL MODAL
+              }}
             />
           );
         }
@@ -235,7 +239,10 @@ export default function App() {
               setEditingBook(null);
               setIsBookModalOpen(true);
             }}
-            onSaleClick={(book) => setSaleBook(book)}
+            onSaleClick={(book) => {
+              setSaleBook(book);
+              setIsSaleModalOpen(true); // <-- ABRE EL MODAL
+            }}
             onBookClick={handleBookClick}
           />
         );
@@ -345,10 +352,14 @@ export default function App() {
         books={books}
       />
 
-      {saleBook && currentUser && (
+      {/* MODIFICADO: Usa isSaleModalOpen para controlar si se muestra o no */}
+      {currentUser && (
         <SaleModal 
-          isOpen={!!saleBook}
-          onClose={() => setSaleBook(null)}
+          isOpen={isSaleModalOpen}
+          onClose={() => {
+            setIsSaleModalOpen(false);
+            setSaleBook(null); // Limpiamos el libro seleccionado al cerrar
+          }}
           initialBook={saleBook}
           currentUser={currentUser}
           onSaleSuccess={fetchBooks}
