@@ -160,6 +160,11 @@ router.patch('/me/password', checkAuth, async (req, res) => {
 
     await auth.updateUser(userId, { password: newPassword });
 
+    // --- NUEVO: LOG DE CONTRASEÑA PROPIA ---
+    await logActivity(currentUser.id, currentUser.username, "USER_UPDATE", { 
+      details: "Actualizó su propia contraseña" 
+    });
+
     res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
 
   } catch (error) {

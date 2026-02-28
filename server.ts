@@ -12,6 +12,7 @@ import debtsRouter from "./server/routes/debts.ts";
 import usersRouter from "./server/routes/users.ts";
 import authRouter from "./server/routes/auth.ts";
 import statsRouter from "./server/routes/stats.ts";
+import logsRouter from "./server/routes/logs.ts"; // <-- NUEVO
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +28,7 @@ async function startServer() {
   // Middleware to extend session on activity
   app.use(sessionMiddleware);
 
-// API Routes
+  // API Routes
   app.use("/api/books", booksRouter);
   app.use("/api/sales", salesRouter);
   app.use("/api/clients", clientsRouter);
@@ -35,7 +36,8 @@ async function startServer() {
   app.use("/api/users", usersRouter);
   app.use("/api", authRouter);         // <-- Restauramos el login
   app.use("/api/stats", statsRouter);  // <-- Dejamos las stats perfectas
-
+  app.use("/api/logs", logsRouter); // <-- NUEVO
+  
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

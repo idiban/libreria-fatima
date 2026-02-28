@@ -232,7 +232,16 @@ router.put("/:id", async (req, res) => {
       
       transaction.update(saleRef, { items, clientId: finalClientId, clientName, total: Number(total), amountPaid: Number(amountPaid), sellerId, sellerName });
     });
-    
+    // --- NUEVO: LOG DE VENTA EDITADA ---
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      const user = JSON.parse(userCookie);
+      await logActivity(user.id, user.username, "SALE_UPDATE", { 
+        clientName: clientName, 
+        total: Number(total) 
+      });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -245,15 +254,18 @@ router.delete("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
+    let saleDataLog: any = null; // <-- Variable para el log
+
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
       const saleDoc = await transaction.get(saleRef);
       if (!saleDoc.exists) throw new Error("Venta no encontrada");
+      
       const saleData = saleDoc.data()!;
+      saleDataLog = saleData; // <-- Guardamos la info antes de borrarla
       
       const bookItems = (saleData.items || []).filter((item: any) => !item.bookId.startsWith('custom_'));
       
-      // PREVENCIÓN DE BUGS: Agrupar por ID único para no repetir operaciones en base de datos
       const stockUpdates = new Map<string, number>();
       for (const item of bookItems) {
         stockUpdates.set(item.bookId, (stockUpdates.get(item.bookId) || 0) + Number(item.quantity));
@@ -263,7 +275,6 @@ router.delete("/:id", async (req, res) => {
       const bookRefs = uniqueBookIds.map(bookId => firestore.collection("libros").doc(bookId));
       const bookDocs = bookRefs.length > 0 ? await transaction.getAll(...bookRefs) : [];
       
-      // DEVOLVER EL DINERO Y AJUSTAR DEUDAS
       if (saleData.clientId) {
         const clientRef = firestore.collection("clientes").doc(saleData.clientId);
         const clientDoc = await transaction.get(clientRef);
@@ -279,7 +290,6 @@ router.delete("/:id", async (req, res) => {
         }
       }
       
-      // REPOSICIÓN MATEMÁTICA DE STOCK ASEGURADA
       for (let i = 0; i < bookDocs.length; i++) {
         if (bookDocs[i].exists) {
           const bookId = bookDocs[i].id;
@@ -291,6 +301,21 @@ router.delete("/:id", async (req, res) => {
       
       transaction.delete(saleRef);
     });
+
+    // --- NUEVO: GUARDAR EN EL LOG DE ACTIVIDAD ---
+    const userCookie = req.cookies?.user;
+    if (userCookie && saleDataLog) {
+        try {
+            const user = JSON.parse(userCookie);
+            await logActivity(user.id, user.username, "SALE_DELETE", {
+                clientName: saleDataLog.clientName || 'Desconocido',
+                total: saleDataLog.total || 0
+            });
+        } catch (e) {
+            console.error("Error parsing user cookie for logging:", e);
+        }
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

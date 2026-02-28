@@ -104,6 +104,13 @@ router.patch("/:id", async (req, res) => {
     const updates = req.body;
     if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
     await firestore.collection("clientes").doc(id).update(updates);
+    // --- NUEVO: LOG DE CLIENTE EDITADO ---
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      const user = JSON.parse(userCookie);
+      await logActivity(user.id, user.username, "CLIENT_UPDATE", { clientName: updates.name });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -160,7 +167,7 @@ router.post("/:id/pay", async (req, res) => {
           try {
               const user = JSON.parse(userCookie);
               await logActivity(user.id, user.username, "DEBT_PAYMENT", {
-                  clientId: id,
+                  clientName: clientNameLog, // <-- ¡AQUÍ ESTÁ LA MAGIA! Agregamos el nombre
                   amountPaid: amount
               });
           } catch (e) {

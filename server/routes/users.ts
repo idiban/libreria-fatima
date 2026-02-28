@@ -62,6 +62,15 @@ router.patch("/:id/password", async (req, res) => {
     const authUser = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(authUser.uid, { password });
 
+    // --- NUEVO: LOG DE CAMBIO DE CONTRASEÑA ---
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      const adminUser = JSON.parse(userCookie);
+      await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
+        details: "Cambió la contraseña a otro usuario" 
+      });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -216,6 +225,13 @@ router.patch("/:id/role", async (req, res) => {
     if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se puede cambiar el rol del Propietario (Owner)" });
 
     await firestore.collection("usuarios").doc(id).update({ role });
+    // --- NUEVO: LOG DE CAMBIO DE ROL ---
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      const adminUser = JSON.parse(userCookie);
+      await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { role: role });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

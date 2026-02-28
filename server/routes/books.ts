@@ -50,6 +50,14 @@ router.post("/", async (req, res) => {
     });
     const newDoc = await docRef.get();
     const data = newDoc.data();
+    
+    // --- NUEVO: LOG DE CREACIÓN DE LIBRO ---
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      const user = JSON.parse(userCookie);
+      await logActivity(user.id, user.username, "BOOK_CREATE", { title: title, price: price });
+    }
+
     res.status(201).json({ id: docRef.id, title: data?.titulo, author: data?.autor, price: data?.precio, stock: data?.stock, cover_url: data?.portada_url });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -105,7 +113,20 @@ router.delete("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
+    
+    // --- NUEVO: OBTENER NOMBRE ANTES DE BORRAR PARA EL LOG ---
+    const bookDoc = await firestore.collection("libros").doc(id).get();
+    const bookTitle = bookDoc.data()?.titulo;
+
     await firestore.collection("libros").doc(id).delete();
+
+    // --- NUEVO: LOG DE ELIMINACIÓN DE LIBRO ---
+    const userCookie = req.cookies?.user;
+    if (userCookie && bookTitle) {
+      const user = JSON.parse(userCookie);
+      await logActivity(user.id, user.username, "BOOK_DELETE", { title: bookTitle });
+    }
+
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

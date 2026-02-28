@@ -139,7 +139,8 @@ export default function Catalog({
               <p className="text-gray-400 font-medium text-[10px] sm:text-xs truncate">{book.author}</p>
               <div className="flex flex-col mt-2">
                 <p className="text-[var(--color-primary)] font-black text-sm sm:text-lg">${formatPrice(book.price)}</p>
-                <div className="flex items-center gap-2 mt-1">
+                {/* MODIFICACIÓN AQUÍ: Se cambió a flex-wrap para que el stock no se rompa */}
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   {book.category && (
                     <span className="px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
                       {book.category}

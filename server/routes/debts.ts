@@ -1,5 +1,6 @@
 import express from "express";
 import { getFirestore } from "../firebase.ts";
+import { logActivity } from "../utils.ts"; 
 
 const router = express.Router();
 
@@ -84,6 +85,7 @@ router.delete("/payment/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
+    let paymentDataLog: any = null; // <-- Variable para el log
 
     await firestore.runTransaction(async (transaction) => {
       const paymentRef = firestore.collection("pagos").doc(id);
@@ -92,6 +94,7 @@ router.delete("/payment/:id", async (req, res) => {
       if (!paymentDoc.exists) throw new Error("Pago no encontrado.");
 
       const paymentData = paymentDoc.data()!;
+      paymentDataLog = paymentData; // <-- Guardamos la info antes de borrar
       const clientId = paymentData.clientId;
       const amount = paymentData.amount || 0;
 
@@ -99,11 +102,9 @@ router.delete("/payment/:id", async (req, res) => {
       const clientDoc = await transaction.get(clientRef);
 
       if (clientDoc.exists) {
-        // Obtenemos los valores actuales de la base de datos
         const currentDebt = clientDoc.data()?.totalDebt || 0;
         const currentCredit = clientDoc.data()?.creditBalance || 0;
         
-        // Al eliminar un pago, la deuda NETA aumenta. Hacemos el balance de ambas partes:
         const finalNetBalance = currentDebt - currentCredit + amount;
 
         transaction.update(clientRef, { 
@@ -114,6 +115,20 @@ router.delete("/payment/:id", async (req, res) => {
 
       transaction.delete(paymentRef);
     });
+
+    // --- NUEVO: GUARDAR EN EL LOG DE ACTIVIDAD ---
+    const userCookie = req.cookies?.user;
+    if (userCookie && paymentDataLog) {
+        try {
+            const user = JSON.parse(userCookie);
+            await logActivity(user.id, user.username, "PAYMENT_DELETE", {
+                clientName: paymentDataLog.clientName || 'Desconocido',
+                amountPaid: paymentDataLog.amount || 0
+            });
+        } catch (e) {
+            console.error("Error parsing user cookie for logging:", e);
+        }
+    }
 
     res.json({ success: true, message: "Pago eliminado correctamente." });
   } catch (error) {
