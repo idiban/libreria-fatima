@@ -1,3 +1,4 @@
+
 import { getFirestore, admin } from "./firebase.ts";
 
 export const normalizeUsername = (str: string) => {
