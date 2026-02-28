@@ -63,33 +63,27 @@ export default function ClientsList() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      {/* Nueva disposición en Grid (tarjetas cuadradas pequeñas) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
         {loading ? (
-          Array(8).fill(0).map((_, i) => (
-            <div key={i} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] animate-pulse h-20" />
+          Array(10).fill(0).map((_, i) => (
+            <div key={i} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] animate-pulse h-32" />
           ))
         ) : filteredClients.map((client) => (
           <motion.div
             layout
             key={client.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
             onClick={() => setSelectedClient(client)}
-            className="bg-white p-5 rounded-[2rem] shadow-sm border border-transparent hover:border-[var(--color-primary)] transition-all cursor-pointer group flex items-center justify-between"
+            className="bg-white p-4 sm:p-5 rounded-[2rem] shadow-sm border border-transparent hover:border-[var(--color-primary)] transition-all cursor-pointer group flex flex-col items-center justify-center gap-3 text-center h-full"
           >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-[var(--color-warm-bg)] flex items-center justify-center text-[var(--color-primary)] text-xl font-black group-hover:scale-110 transition-transform">
-                {client.name[0].toUpperCase()}
-              </div>
-              <div>
-                <h3 className="font-bold text-[var(--color-primary)] leading-tight">{client.name}</h3>
-
-              </div>
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[var(--color-warm-bg)] flex items-center justify-center text-[var(--color-primary)] text-xl sm:text-2xl font-black group-hover:scale-110 group-hover:bg-[var(--color-primary)] group-hover:text-white transition-all shadow-sm shrink-0">
+              {client.name[0].toUpperCase()}
             </div>
-            <div className="text-center bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-2">
-              <p className="text-xl font-black text-emerald-600">{client.totalItemsPurchased || 0}</p>
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Artículos</p>
-            </div>
+            <h3 className="font-bold text-[var(--color-primary)] text-xs sm:text-sm leading-tight break-words w-full">
+              {client.name}
+            </h3>
           </motion.div>
         ))}
       </div>

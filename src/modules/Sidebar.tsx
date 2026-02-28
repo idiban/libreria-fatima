@@ -130,8 +130,8 @@ export default function Sidebar({
       {/* User & Collapse */}
       <div className="p-4 border-t border-[#FDF2F0] space-y-2">
         {currentUser && !isCollapsed && (
-          <div className="px-4 py-3 bg-[#FFF9F5] rounded-2xl mb-2">
-            <p className="text-sm font-bold truncate">{currentUser?.username || 'Usuario Desconocido'}</p>
+          <div className="px-4 py-3 bg-[var(--color-warm-bg)] border border-[var(--color-primary)]/10 shadow-sm rounded-2xl mb-2 flex items-center justify-center">
+            <p className="text-sm font-black text-[var(--color-primary)] truncate">{currentUser?.username || 'Usuario Desconocido'}</p>
           </div>
         )}
         

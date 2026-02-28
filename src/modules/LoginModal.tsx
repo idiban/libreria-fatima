@@ -98,7 +98,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                       type="text"
                       name="username"
                       required
-                      className="w-full pl-12 pr-4 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold"
+                      className="w-full pl-12 pr-4 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-bold"
                       placeholder="Tu nombre de usuario"
                       value={loginForm.username}
                       onChange={handleInputChange}
@@ -135,7 +135,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                       type={showPassword ? "text" : "password"}
                       name="password"
                       required
-                      className="w-full pl-12 pr-12 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[#B23B23] rounded-2xl outline-none transition-all font-bold"
+                      className="w-full pl-12 pr-12 py-4 bg-[#FFF9F5] border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-bold"
                       placeholder="••••••••"
                       value={loginForm.password}
                       onChange={handleInputChange}
@@ -143,7 +143,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#B23B23] transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[var(--color-primary)] transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>

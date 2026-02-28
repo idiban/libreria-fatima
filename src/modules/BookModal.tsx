@@ -44,6 +44,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   const [errors, setErrors] = useState({ title: false, author: false, price: false, stock: false, category: false });
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPriceConfirm, setShowPriceConfirm] = useState(false);
+
   
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +54,13 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
 
   const normalize = (str: string) => 
     str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+    useEffect(() => {
+    if (!isOpen) {
+      setErrors({ title: false, author: false, price: false, stock: false, category: false });
+      setValidationError(null);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (formData.title.length > 3 && !editingBook) {

@@ -16,11 +16,18 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
   const [bookToDelete, setBookToDelete] = useState<BookItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const normalizeText = (text: string) => {
+    if (!text) return '';
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
   const sortedBooks = [...books].sort((a, b) => a.title.localeCompare(b.title));
-  const filteredBooks = sortedBooks.filter(b => 
-    b.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    b.author.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  
+  const filteredBooks = sortedBooks.filter(b => {
+    const normalizedSearch = normalizeText(searchTerm);
+    return normalizeText(b.title).includes(normalizedSearch) || 
+           normalizeText(b.author).includes(normalizedSearch);
+  });
 
   const handleDeleteBook = async () => {
     if (!bookToDelete) return;

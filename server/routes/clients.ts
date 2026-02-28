@@ -1,0 +1,167 @@
+import express from "express";
+import { getFirestore, admin } from "../firebase.ts";
+import { logActivity, normalizeUsername } from "../utils.ts";
+
+const router = express.Router();
+
+router.get("/:id/history", async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+  try {
+    const { id } = req.params;
+    
+    const salesSnapshot = await firestore.collection("ventas")
+      .where("clientId", "==", id)
+      .get();
+    
+    const sales = salesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      type: 'sale',
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate()
+    }));
+
+    const paymentsSnapshot = await firestore.collection("pagos")
+      .where("clientId", "==", id)
+      .get();
+
+    const payments = paymentsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp?.toDate()
+    }));
+
+    const history = [...sales, ...payments].sort((a, b) => {
+      const timeA = a.timestamp?.getTime() || 0;
+      const timeB = b.timestamp?.getTime() || 0;
+      return timeB - timeA;
+    });
+
+    res.json({ history });
+  } catch (error) {
+    console.error("Error en /api/clients/:id/history:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.get("/suggest", async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+  try {
+    const { q } = req.query;
+    if (!q || typeof q !== "string") return res.json([]);
+    const query = normalizeUsername(q);
+    
+    const snapshot = await firestore.collection("clientes").get();
+    
+    const suggestions = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as any))
+      .filter(client => {
+        const normalizedName = normalizeUsername(client.name || '');
+        return normalizedName.includes(query) || query.includes(normalizedName);
+      })
+      .slice(0, 5);
+      
+    res.json(suggestions);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.get("/", async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+  try {
+    const clientsSnapshot = await firestore.collection("clientes").get();
+    const clients = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const salesSnapshot = await firestore.collection("ventas").get();
+    const itemsByClient = salesSnapshot.docs.reduce((acc, doc) => {
+      const sale = doc.data();
+      if (sale.clientId && Array.isArray(sale.items)) {
+        const totalItems = sale.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        acc[sale.clientId] = (acc[sale.clientId] || 0) + totalItems;
+      }
+      return acc;
+    }, {} as { [key: string]: number });
+
+    const clientsWithItemCount = clients.map(client => ({
+      ...client,
+      totalItemsPurchased: itemsByClient[(client as any).id] || 0
+    }));
+
+    res.json(clientsWithItemCount);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.patch("/:id", async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
+    await firestore.collection("clientes").doc(id).update(updates);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.post("/:id/pay", async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
+  try {
+      const { id } = req.params;
+      const { amount } = req.body;
+
+      if (!amount || typeof amount !== 'number' || amount <= 0) {
+          return res.status(400).json({ error: "Monto de pago inválido." });
+      }
+
+      await firestore.runTransaction(async (transaction) => {
+          const clientRef = firestore.collection("clientes").doc(id);
+          const clientDoc = await transaction.get(clientRef);
+
+          if (!clientDoc.exists) {
+              throw new Error("Cliente no encontrado.");
+          }
+
+          const currentDebt = clientDoc.data()?.totalDebt || 0;
+          if (amount > currentDebt) {
+              throw new Error("El monto del pago no puede ser mayor a la deuda total.");
+          }
+
+          const newDebt = currentDebt - amount;
+          transaction.update(clientRef, { totalDebt: newDebt });
+
+          const paymentRef = firestore.collection("pagos").doc();
+          transaction.set(paymentRef, {
+            clientId: id,
+            clientName: clientDoc.data()?.name || 'N/A',
+            amount: amount,
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            type: 'payment'
+          });
+      });
+
+      const userCookie = req.cookies.user;
+      if (userCookie) {
+          const user = JSON.parse(userCookie);
+          await logActivity(user.id, user.username, "DEBT_PAYMENT", {
+              clientId: id,
+              amountPaid: amount
+          });
+      }
+
+      res.json({ success: true, message: "Pago procesado correctamente." });
+
+  } catch (error) {
+      res.status(400).json({ error: (error as Error).message });
+  }
+});
+
+export default router;

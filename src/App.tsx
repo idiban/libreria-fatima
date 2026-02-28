@@ -34,7 +34,7 @@ export default function App() {
   // Selection State
   const [selectedBook, setSelectedBook] = useState<BookItem | null>(null);
 
-  // Handle Browser Back Button for All Views
+  // Handle Browser Back Button for All Views (Esto hace que el botón físico del celular funcione)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (event.state) {
@@ -73,8 +73,13 @@ export default function App() {
     navigateTo('catalog', book);
   };
 
+  // Usamos el historial del navegador para que el botón de la pantalla haga lo mismo que el botón del celular
   const handleBackToCatalog = () => {
-    window.history.back();
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      navigateTo('catalog');
+    }
   };
 
   const [editingBook, setEditingBook] = useState<BookItem | null>(null);
@@ -195,7 +200,11 @@ export default function App() {
   };
 
   const renderView = () => {
-    switch (activeView) {
+    // PROTECCIÓN ROBUSTA: Si no hay usuario activo, cualquier intento de ver una vista protegida 
+    // mediante el botón 'atrás' del navegador lo devuelve inmediatamente al catálogo.
+    const safeView = (!currentUser && activeView !== 'catalog') ? 'catalog' : activeView;
+
+    switch (safeView) {
       case 'change-password':
         setIsChangePasswordModalOpen(true);
         setActiveView('catalog'); // Fallback to a default view
@@ -239,13 +248,13 @@ export default function App() {
           setIsBookModalOpen(true);
         }} onBookDeleted={fetchBooks} />;
       case 'users':
-        return currentUser ? <UserAdmin currentUser={currentUser} allUsers={allUsers} onFetchUsers={fetchUsers} /> : null;
+        return <UserAdmin currentUser={currentUser!} allUsers={allUsers} onFetchUsers={fetchUsers} />;
       case 'stats':
         return <StatsDashboard />;
       case 'logs':
         return <ActivityLogs />;
       case 'sales':
-        return currentUser ? <SalesHistory currentUser={currentUser} /> : null;
+        return <SalesHistory currentUser={currentUser!} />;
       case 'clients':
         return <ClientsList />;
       case 'debtors':

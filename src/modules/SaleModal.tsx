@@ -8,13 +8,13 @@ import {
   Loader2, 
   User, 
   DollarSign, 
+  AlertCircle,
   Trash2,
-  Sparkles,
-  AlertCircle
+  PiggyBank 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem } from '../types';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -36,16 +36,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [bookSearchTerm, setBookSearchTerm] = useState('');
   const [bookSuggestions, setBookSuggestions] = useState<BookItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [smartClientPrompt, setSmartClientPrompt] = useState<{ existing: any, current: string } | null>(null);
   const [clientNameError, setClientNameError] = useState(false);
   const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
+  const [selectedClientCredit, setSelectedClientCredit] = useState<number>(0); 
+  const [showOverpayConfirm, setShowOverpayConfirm] = useState(false); 
 
   const [isClientSelected, setIsClientSelected] = useState(false);
 
-  // Estados para el nuevo artículo manual
   const [showCustomItemForm, setShowCustomItemForm] = useState(false);
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
+  
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -59,9 +60,21 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  // El Total siempre debe ser el valor de la compra actual
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  
+  // Modificado: El total neto a pagar es solo el total de la compra. 
+  // La deuda/crédito previo se maneja en la lógica de pago pero no ensucia el precio del producto.
+  const netTotalToPay = total + (selectedClientDebt || 0);
 
   const latestSearch = useRef<string>('');
+
+  useEffect(() => {
+    if (!isOpen) {
+      setClientNameError(false);
+      setShowOverpayConfirm(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (clientName.length > 1 && !isClientSelected) {
@@ -92,7 +105,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const handleBookSearch = async (term: string) => {
     setBookSearchTerm(term);
-    latestSearch.current = term; 
+    latestSearch.current = term;
 
     if (term.length > 2) {
       setIsSearching(true);
@@ -115,7 +128,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             const filtered = allBooks.filter(b => 
               normalizeText(b.title).includes(normalizedTerm) || 
               normalizeText(b.author).includes(normalizedTerm) ||
-              normalizeText(b.category).includes(normalizedTerm)
+              normalizeText(b.category || '').includes(normalizedTerm)
             );
             setBookSuggestions(filtered);
           } else {
@@ -147,24 +160,21 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setIsSearching(false);
   };
 
-  // Función para agregar el artículo manual
   const handleAddCustomItem = () => {
     if (!customItemName.trim() || !customItemPrice) return;
     const priceNum = Number(customItemPrice.replace(/\D/g, ''));
     if (priceNum <= 0) return;
 
     const newItem: any = {
-      bookId: `custom_${Date.now()}`, // ID único para que React y el carrito lo diferencien
+      bookId: `custom_${Date.now()}`, 
       title: customItemName.trim(),
       price: priceNum,
       quantity: 1,
-      stock: 99999, // Stock alto para que nunca muestre "Sin Stock"
+      stock: 99999, 
       cover_url: '' 
     };
 
     setItems(prev => [...prev, newItem]);
-    
-    // Limpiamos y cerramos el formulario
     setCustomItemName('');
     setCustomItemPrice('');
     setShowCustomItemForm(false);
@@ -174,7 +184,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setItems(prev => prev.map(item => {
       if (item.bookId === bookId) {
         let newQty = item.quantity + delta;
-        if (newQty < 1) newQty = 1; // Cantidad mínima 1
+        if (newQty < 1) newQty = 1;
         return { ...item, quantity: newQty };
       }
       return item;
@@ -186,19 +196,22 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     setItems(prev => prev.filter(i => i.bookId !== bookId));
   };
 
-  useEffect(() => {
-    const maxAllowed = total + (selectedClientDebt || 0);
-    if (amountPaid > maxAllowed) {
-      setAmountPaid(maxAllowed);
-    }
-  }, [total, amountPaid, selectedClientDebt]);
-
   const handleFinalize = async () => {
     if (!clientName.trim()) {
       setClientNameError(true);
       return;
     }
 
+    // Usamos el total actual para la validación del popup de saldo a favor
+    if (amountPaid > netTotalToPay && !showOverpayConfirm) {
+      setShowOverpayConfirm(true);
+      return;
+    }
+
+    executeFinalize();
+  };
+
+  const executeFinalize = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/sales', {
@@ -209,7 +222,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           clientId,
           clientName,
           amountPaid,
-          total,
+          total, // Valor de la compra
           sellerId: currentUser.id,
           sellerName: currentUser.username
         })
@@ -226,6 +239,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       alert('Error al procesar la venta.');
     } finally {
       setIsLoading(false);
+      setShowOverpayConfirm(false);
     }
   };
 
@@ -249,10 +263,15 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             <div className="p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)]">
               <div>
                 <h2 className="text-3xl font-black text-[var(--color-primary)] leading-tight flex items-center gap-2">
-                  <span>{clientName || 'Venta'}</span>
-                  {selectedClientDebt && selectedClientDebt > 0 && (
-                    <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">Debe ${formatPrice(selectedClientDebt)}</span>
-                  )}
+                  <span>{clientName || 'Nueva Venta'}</span>
+                  <div className="flex gap-2">
+                    {selectedClientDebt !== null && selectedClientDebt > 0 && (
+                      <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-100">Debe ${formatPrice(selectedClientDebt)}</span>
+                    )}
+                    {selectedClientCredit > 0 && (
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">Favor: ${formatPrice(selectedClientCredit)}</span>
+                    )}
+                  </div>
                 </h2>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Carrito de Compras</p>
               </div>
@@ -278,6 +297,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                       setClientId(null);
                       if (clientNameError) setClientNameError(false);
                       setSelectedClientDebt(null);
+                      setSelectedClientCredit(0);
                       setIsClientSelected(false);
                     }}
                   />
@@ -294,8 +314,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                             onClick={() => {
                               setClientName(c.name);
                               setClientId(c.id);
-                              if (c.totalDebt) {
-                                setSelectedClientDebt(c.totalDebt);
+                              setSelectedClientDebt(c.totalDebt || 0);
+                              setSelectedClientCredit(c.creditBalance || 0);
+                              // Al seleccionar, si tiene crédito, sugerimos el pago total con su crédito
+                              if (c.creditBalance > 0) {
+                                setAmountPaid(c.creditBalance);
                               }
                               setIsClientSelected(true);
                               setClientSuggestions([]);
@@ -332,7 +355,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                           <h4 className="font-bold text-sm leading-tight pr-8 sm:pr-0">{item.title}</h4>
                           <div className="flex items-center gap-2 mt-1">
                             <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
-                            {item.stock === 0 && (
+                            {item.stock === 0 && !item.bookId.startsWith('custom_') && (
                               <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">Sin Stock</span>
                             )}
                           </div>
@@ -362,7 +385,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   ))}
                 </div>
 
-                {/* Add More Search */}
                 <div className="relative mt-4">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
@@ -415,7 +437,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   )}
                 </div>
 
-                {/* NUEVO: Agregar artículo manual */}
                 <div className="mt-4">
                   {!showCustomItemForm ? (
                     <button
@@ -484,31 +505,33 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                       value={amountPaid ? formatPrice(amountPaid) : ''}
                       onChange={(e) => {
                         const val = e.target.value.replace(/\D/g, '');
-                        let num = Number(val);
-                        const maxAllowed = total + (selectedClientDebt || 0);
-                        if (num > maxAllowed) num = maxAllowed;
-                        setAmountPaid(num);
+                        setAmountPaid(Number(val));
                       }}
                     />
                   </div>
                   <button 
-                    onClick={() => setAmountPaid(total + (selectedClientDebt || 0))}
+                    onClick={() => setAmountPaid(netTotalToPay)}
                     className="mt-2 w-full py-3 sm:py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                   >
-                    Pagó todo
+                    Saldar cuenta
                   </button>
                 </div>
                 <div className="flex justify-center items-center">
                   <div className={`w-full sm:w-auto rounded-2xl p-4 sm:p-3 sm:px-5 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
-                    amountPaid >= (total + (selectedClientDebt || 0))
+                    amountPaid >= netTotalToPay
                       ? 'bg-emerald-500 shadow-emerald-500/20' 
                       : 'bg-red-500 shadow-red-500/20'
                   }`}>
-                    <p className="text-[10px] sm:text-[9px] font-black uppercase tracking-widest opacity-60">Total a Pagar</p>
-                    <p className="text-2xl sm:text-2xl font-black">${formatPrice(total + (selectedClientDebt || 0))}</p>
-                    {(total + (selectedClientDebt || 0)) - amountPaid > 0 && (
+                    <p className="text-[10px] sm:text-[9px] font-black uppercase tracking-widest opacity-60">Total Venta</p>
+                    <p className="text-2xl sm:text-2xl font-black">${formatPrice(netTotalToPay)}</p>
+                    {netTotalToPay - amountPaid > 0 && (
                       <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg">
-                        Falta: ${formatPrice((total + (selectedClientDebt || 0)) - amountPaid)}
+                        Falta: ${formatPrice(netTotalToPay - amountPaid)}
+                      </p>
+                    )}
+                    {amountPaid > netTotalToPay && (
+                      <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg text-emerald-100">
+                        A favor: ${formatPrice(amountPaid - netTotalToPay)}
                       </p>
                     )}
                   </div>
@@ -527,7 +550,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               <button
                 onClick={handleFinalize}
                 disabled={isLoading || !amountPaid || amountPaid <= 0 || !clientName.trim()}
-                className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-4 px-6 rounded-2xl font-black text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -542,6 +565,24 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           </motion.div>
         </div>
       )}
+
+      {/* Popup de Confirmación PiggyBank */}
+      <AnimatePresence>
+        {showOverpayConfirm && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowOverpayConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-10 text-center">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6"><PiggyBank className="w-10 h-10 text-emerald-500" /></div>
+              <h3 className="text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed">¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountPaid - netTotalToPay)}</span> como saldo a favor para este cliente?</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={executeFinalize} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Sí, guardar saldo</button>
+                <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black active:scale-95 transition-all">Corregir monto</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
