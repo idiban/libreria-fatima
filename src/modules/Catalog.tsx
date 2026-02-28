@@ -31,7 +31,7 @@ export default function Catalog({
   };
 
   const normalizeText = (text: string) => {
-    return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
 
   const filteredBooks = books.filter(book => {
@@ -103,13 +103,14 @@ export default function Catalog({
               <div className="h-3 bg-gray-100 rounded-full w-1/2" />
             </div>
           ))
-        ) : filteredBooks.map((book, index) => (
+        ) : filteredBooks.map((book) => (
           <motion.div
             layout
             key={book.id}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-[2rem] p-3 sm:p-4 shadow-sm hover:shadow-xl transition-all group relative border border-transparent hover:border-gray-100 cursor-pointer"
+            /* MODIFICACIÓN AQUÍ: Se añadió flex flex-col para hacer que todas las tarjetas midan lo mismo */
+            className="bg-white rounded-[2rem] p-3 sm:p-4 shadow-sm hover:shadow-xl transition-all group relative border border-transparent hover:border-gray-100 cursor-pointer flex flex-col"
             onClick={() => {
               if (currentUser) {
                 onSaleClick(book);
@@ -118,7 +119,7 @@ export default function Catalog({
               }
             }}
           >
-            <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-4 bg-gray-50 relative">
+            <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-3 sm:mb-4 bg-gray-50 relative shrink-0">
               {book.cover_url ? (
                 <img 
                   src={book.cover_url} 
@@ -131,30 +132,29 @@ export default function Catalog({
                   <BookOpen className="w-12 h-12" />
                 </div>
               )}
-
             </div>
             
-            <div className="space-y-1 mb-4">
+            {/* MODIFICACIÓN AQUÍ: Se reorganizó el texto para que el bloque de precio se vaya abajo automáticamente */}
+            <div className="flex flex-col flex-1">
               <h3 className="text-sm sm:text-base font-bold leading-tight group-hover:text-[var(--color-primary)] transition-colors line-clamp-2 text-[var(--color-primary)]">{book.title}</h3>
-              <p className="text-gray-400 font-medium text-[10px] sm:text-xs truncate">{book.author}</p>
-              <div className="flex flex-col mt-2">
-                <p className="text-[var(--color-primary)] font-black text-sm sm:text-lg">${formatPrice(book.price)}</p>
-                {/* MODIFICACIÓN AQUÍ: Se cambió a flex-wrap para que el stock no se rompa */}
-                <div className="flex flex-wrap items-center gap-2 mt-1">
-                  {book.category && (
-                    <span className="px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
-                      {book.category}
-                    </span>
-                  )}
+              <p className="text-gray-400 font-medium text-[10px] sm:text-xs truncate mt-0.5">{book.author}</p>
+              
+              <div className="flex flex-col mt-auto pt-3 gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[var(--color-primary)] font-black text-sm sm:text-lg leading-none">${formatPrice(book.price)}</p>
                   {currentUser && (
-                    <span className={`text-[10px] font-bold ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
+                    <span className={`text-[10px] font-bold whitespace-nowrap ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
                       Stock: {book.stock}
                     </span>
                   )}
                 </div>
+                {book.category && (
+                  <span className="self-start px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)] truncate max-w-full">
+                    {book.category}
+                  </span>
+                )}
               </div>
             </div>
-
 
           </motion.div>
         ))}

@@ -540,7 +540,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                     onClick={() => setAmountPaid(cashNeeded)}
                     className="mt-2 w-full py-3 sm:py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                   >
-                    Saldar cuenta
+                    Pagó todo
                   </button>
                 </div>
                 <div className="flex justify-center items-center">

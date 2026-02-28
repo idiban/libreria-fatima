@@ -38,7 +38,23 @@ router.get("/", async (req, res) => {
 
   try {
     const snapshot = await firestore.collection("usuarios").get();
-    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+
+    const userCookie = req.cookies?.user;
+    if (userCookie) {
+      try {
+        const currentUser = JSON.parse(userCookie);
+        if (currentUser.role !== 'owner') {
+          users = users.filter((user: any) => user.role !== 'owner');
+        }
+      } catch (e) {
+        console.error("Error al leer la cookie:", e);
+        users = users.filter((user: any) => user.role !== 'owner');
+      }
+    } else {
+      users = users.filter((user: any) => user.role !== 'owner');
+    }
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -62,7 +78,7 @@ router.patch("/:id/password", async (req, res) => {
     const authUser = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(authUser.uid, { password });
 
-    // --- NUEVO: LOG DE CAMBIO DE CONTRASEÑA ---
+    // --- LOG DE CAMBIO DE CONTRASEÑA RECUPERADO ---
     const userCookie = req.cookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
@@ -92,11 +108,28 @@ router.post("/", async (req, res) => {
     
     if (!existing.empty) return res.status(400).json({ error: "El usuario ya existe" });
 
-    const authUser = await admin.auth().createUser({
-      email,
-      password,
-      displayName: username
-    });
+    let authUser;
+    try {
+      authUser = await admin.auth().createUser({
+        email,
+        password,
+        displayName: username
+      });
+    } catch (createError: any) {
+      // AUTO-REPARACIÓN DE USUARIOS FANTASMAS
+      if (createError.code === 'auth/email-already-exists') {
+        const orphanedUser = await admin.auth().getUserByEmail(email);
+        await admin.auth().deleteUser(orphanedUser.uid); 
+        
+        authUser = await admin.auth().createUser({
+          email,
+          password,
+          displayName: username
+        });
+      } else {
+        throw createError;
+      }
+    }
 
     const docRef = await firestore.collection("usuarios").doc(authUser.uid).set({
       username,
@@ -118,7 +151,8 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({ id: authUser.uid, username, role, email });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
+    const errorMsg = (error as any).message || "Error al crear usuario";
+    res.status(500).json({ error: errorMsg });
   }
 });
 
@@ -131,12 +165,21 @@ router.delete("/:id", async (req, res) => {
     const userDoc = await firestore.collection("usuarios").doc(id).get();
     
     if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
-    if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se puede eliminar al Propietario (Owner)" });
+    const userData = userDoc.data();
+    if (userData?.role === 'owner') return res.status(403).json({ error: "No se puede eliminar al Propietario (Owner)" });
 
-    try {
-      await admin.auth().deleteUser(id);
-    } catch (e) {
-      console.warn("User not found in Auth, but deleting from Firestore anyway");
+    // BORRADO SEGURO
+    if (userData?.email) {
+      try {
+        const authUser = await admin.auth().getUserByEmail(userData.email);
+        await admin.auth().deleteUser(authUser.uid);
+      } catch (e) {
+        console.warn("Usuario no encontrado en Auth por email, omitiendo.");
+      }
+    } else {
+      try {
+        await admin.auth().deleteUser(id);
+      } catch (e) {}
     }
 
     await firestore.collection("usuarios").doc(id).delete();
@@ -146,7 +189,7 @@ router.delete("/:id", async (req, res) => {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_DELETE", {
         deletedUserId: id,
-        deletedUsername: userDoc.data()?.username
+        deletedUsername: userData?.username
       });
     }
 
@@ -225,7 +268,8 @@ router.patch("/:id/role", async (req, res) => {
     if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se puede cambiar el rol del Propietario (Owner)" });
 
     await firestore.collection("usuarios").doc(id).update({ role });
-    // --- NUEVO: LOG DE CAMBIO DE ROL ---
+    
+    // --- LOG DE CAMBIO DE ROL RECUPERADO ---
     const userCookie = req.cookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);

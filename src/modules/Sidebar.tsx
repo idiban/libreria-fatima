@@ -74,14 +74,14 @@ export default function Sidebar({
           width: typeof window !== 'undefined' && window.innerWidth < 768 ? 280 : (isCollapsed ? 80 : 280),
           x: typeof window !== 'undefined' && window.innerWidth < 768 ? (isMobileOpen ? 0 : -280) : 0
         }}
-        className="fixed md:sticky top-0 h-screen bg-white border-r border-[var(--color-warm-surface)] flex flex-col z-[70] shadow-2xl md:shadow-none"
+        className="fixed md:sticky top-0 h-[100dvh] bg-white border-r border-[var(--color-warm-surface)] flex flex-col z-[70] shadow-2xl md:shadow-none"
       >
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
         <div className="bg-[var(--color-primary)] p-2 rounded-xl shrink-0">
           <Library className="w-6 h-6 text-white" />
         </div>
-        {!isCollapsed && (
+        {(!isCollapsed || isMobileOpen) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -94,7 +94,7 @@ export default function Sidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 space-y-1 mt-4">
+      <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto">
         {filteredItems.map((item) => (
           <button
             key={item.id}
@@ -109,7 +109,7 @@ export default function Sidebar({
             }`}
           >
             <item.icon className="w-5 h-5 shrink-0" />
-            {!isCollapsed && (
+            {(!isCollapsed || isMobileOpen) && (
               <motion.span
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -118,7 +118,7 @@ export default function Sidebar({
                 {item.label}
               </motion.span>
             )}
-            {isCollapsed && (
+            {isCollapsed && !isMobileOpen && (
               <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                 {item.label}
               </div>
@@ -128,16 +128,17 @@ export default function Sidebar({
       </nav>
 
       {/* User & Collapse */}
-      <div className="p-4 border-t border-[#FDF2F0] space-y-2">
-        {currentUser && !isCollapsed && (
+      <div className="p-4 pb-8 md:pb-4 border-t border-[#FDF2F0] space-y-2">
+        {currentUser && (!isCollapsed || isMobileOpen) && (
           <div className="px-4 py-3 bg-[var(--color-warm-bg)] border border-[var(--color-primary)]/10 shadow-sm rounded-2xl mb-2 flex items-center justify-center">
             <p className="text-sm font-black text-[var(--color-primary)] truncate">{currentUser?.username || 'Usuario Desconocido'}</p>
           </div>
         )}
         
+        {/* Este botón ahora está oculto en móviles (hidden md:flex) */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-[#B23B23] transition-all"
+          className="hidden md:flex w-full items-center gap-3 px-4 py-3 text-gray-400 hover:text-[#B23B23] transition-all"
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           {!isCollapsed && <span className="text-sm font-bold">Colapsar Menú</span>}
@@ -148,8 +149,8 @@ export default function Sidebar({
           className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-[var(--color-warm-bg)] hover:text-[var(--color-primary)] rounded-2xl transition-all relative group"
         >
           <Key className="w-5 h-5 shrink-0" />
-          {!isCollapsed && <span className="text-sm font-bold">Cambiar Contraseña</span>}
-          {isCollapsed && (
+          {(!isCollapsed || isMobileOpen) && <span className="text-sm font-bold">Cambiar Contraseña</span>}
+          {isCollapsed && !isMobileOpen && (
             <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Cambiar Contraseña
             </div>
@@ -161,8 +162,8 @@ export default function Sidebar({
           className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all relative group"
         >
           <LogOut className="w-5 h-5 shrink-0" />
-          {!isCollapsed && <span className="text-sm font-bold">Cerrar Sesión</span>}
-          {isCollapsed && (
+          {(!isCollapsed || isMobileOpen) && <span className="text-sm font-bold">Cerrar Sesión</span>}
+          {isCollapsed && !isMobileOpen && (
             <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
               Cerrar Sesión
             </div>
