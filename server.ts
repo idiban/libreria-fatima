@@ -27,14 +27,14 @@ async function startServer() {
   // Middleware to extend session on activity
   app.use(sessionMiddleware);
 
-  // API Routes
+// API Routes
   app.use("/api/books", booksRouter);
   app.use("/api/sales", salesRouter);
   app.use("/api/clients", clientsRouter);
   app.use("/api/debts", debtsRouter);
   app.use("/api/users", usersRouter);
-  app.use("/api", authRouter);
-  app.use("/api", statsRouter);
+  app.use("/api", authRouter);         // <-- Restauramos el login
+  app.use("/api/stats", statsRouter);  // <-- Dejamos las stats perfectas
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

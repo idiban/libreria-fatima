@@ -36,10 +36,19 @@ export default function StatsDashboard() {
       setLoading(true);
       try {
         const res = await fetch(`/api/stats?timeframe=${timeframe}`);
-        const data = await res.json();
-        setStats(data);
+        const contentType = res.headers.get('content-type');
+        
+        // MODIFICACIÓN: Revisamos si el backend realmente nos devolvió JSON
+        if (contentType && contentType.indexOf('application/json') !== -1) {
+          const data = await res.json();
+          setStats(data);
+        } else {
+          console.error("El servidor devolvió HTML. Asegúrate de que el backend esté corriendo y no tenga errores.");
+          setStats(null);
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Error de red:", e);
+        setStats(null);
       } finally {
         setLoading(false);
       }
@@ -49,7 +58,7 @@ export default function StatsDashboard() {
 
   if (loading && !stats) return (
     <div className="flex items-center justify-center h-96">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#B23B23]" />
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-primary)]" />
     </div>
   );
 
@@ -68,12 +77,12 @@ export default function StatsDashboard() {
     <div className="space-y-10 pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-4xl font-black tracking-tight mb-2 text-[#2D1A1A]">Estadísticas</h2>
+          <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Estadísticas</h2>
           <p className="text-gray-500 font-medium">Resumen del rendimiento financiero y de inventario.</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl shadow-sm border border-[#FDF2F0]">
-          <Filter className="w-5 h-5 text-[#B23B23]" />
+        <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl shadow-sm border border-[var(--color-warm-surface)]">
+          <Filter className="w-5 h-5 text-[var(--color-primary)]" />
           <select 
             className="bg-transparent font-black text-sm text-[#2D1A1A] outline-none cursor-pointer"
             value={timeframe}
@@ -95,7 +104,7 @@ export default function StatsDashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#FDF2F0] relative overflow-hidden group"
+            className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)] relative overflow-hidden group"
           >
             <div className={`absolute top-0 right-0 w-24 h-24 ${card.color} opacity-5 -mr-8 -mt-8 rounded-full group-hover:scale-150 transition-transform duration-500`} />
             <div className={`${card.color} w-12 h-12 rounded-2xl flex items-center justify-center text-white mb-6 shadow-lg shadow-current/20`}>
@@ -109,27 +118,27 @@ export default function StatsDashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Sales Bar Chart */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#FDF2F0]">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)]">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-black text-lg text-[#2D1A1A] flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-[#B23B23]" />
+            <h3 className="font-black text-lg text-[var(--color-primary)] flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
               Evolución de Ventas
             </h3>
           </div>
           <div className="h-80 w-full relative">
-            {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#B23B23]" /></div>}
+            {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" /></div>}
             {stats?.salesByDay?.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.salesByDay}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#FDF2F0" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-warm-surface)" />
                   <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#9CA3AF' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#9CA3AF' }} tickFormatter={(value) => `$${value/1000}k`} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                    cursor={{ fill: '#FFF9F5' }}
+                    cursor={{ fill: 'var(--color-warm-bg)' }}
                     formatter={(value: number) => [formatCurrency(value), 'Total']}
                   />
-                  <Bar dataKey="total" fill="#B23B23" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="total" fill="var(--color-primary)" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -139,15 +148,15 @@ export default function StatsDashboard() {
         </div>
 
         {/* Category Pie Chart */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#FDF2F0]">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)]">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="font-black text-lg text-[#2D1A1A] flex items-center gap-2">
-              <PieChartIcon className="w-5 h-5 text-[#B23B23]" />
+            <h3 className="font-black text-lg text-[var(--color-primary)] flex items-center gap-2">
+              <PieChartIcon className="w-5 h-5" />
               Ventas por Categoría
             </h3>
           </div>
           <div className="h-80 w-full relative">
-            {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#B23B23]" /></div>}
+            {loading && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" /></div>}
             {stats?.salesByCategory?.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -183,14 +192,14 @@ export default function StatsDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Top Libros */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#FDF2F0]">
-          <h3 className="font-black text-lg text-[#2D1A1A] flex items-center gap-2 mb-6">
-            <BookOpen className="w-5 h-5 text-[#B23B23]" /> Top Libros
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)]">
+          <h3 className="font-black text-lg text-[var(--color-primary)] flex items-center gap-2 mb-6">
+            <BookOpen className="w-5 h-5" /> Top Libros
           </h3>
           <div className="space-y-5">
             {stats?.topBooks?.length > 0 ? stats.topBooks.map((book: any, i: number) => (
               <div key={book.id || i} className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-full bg-[#FFF9F5] flex items-center justify-center text-[#B23B23] font-black text-xs shrink-0">
+                <div className="w-8 h-8 rounded-full bg-[var(--color-warm-bg)] flex items-center justify-center text-[var(--color-primary)] font-black text-xs shrink-0">
                   {i + 1}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -203,9 +212,9 @@ export default function StatsDashboard() {
         </div>
 
         {/* Mejores Clientes */}
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[#FDF2F0]">
-          <h3 className="font-black text-lg text-[#2D1A1A] flex items-center gap-2 mb-6">
-            <Trophy className="w-5 h-5 text-[#B23B23]" /> Mejores Clientes
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)]">
+          <h3 className="font-black text-lg text-[var(--color-primary)] flex items-center gap-2 mb-6">
+            <Trophy className="w-5 h-5" /> Mejores Clientes
           </h3>
           <div className="space-y-5">
             {stats?.topClients?.length > 0 ? stats.topClients.map((client: any, i: number) => (
