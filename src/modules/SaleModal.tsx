@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem } from '../types';
-import { GoogleGenAI } from "@google/genai";
 
 interface SaleModalProps {
   isOpen: boolean;
@@ -61,13 +60,8 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
-  // El Total siempre debe ser el valor de la compra actual
   const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  
-  // Modificado: El total neto a pagar considera la deuda previa.
   const netTotalToPay = total + (selectedClientDebt || 0);
-  
-  // NUEVO: Cuánto efectivo real necesita entregar considerando su saldo a favor
   const cashNeeded = Math.max(0, netTotalToPay - selectedClientCredit);
 
   const latestSearch = useRef<string>('');
@@ -126,12 +120,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     if (term.length > 2) {
       setIsSearching(true);
       try {
-        const ai = new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY as string) });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [{ text: `Basado en el término de búsqueda "${term}", identifica qué libros del catálogo podrían coincidir. Responde solo con una lista de IDs de libros si los conoces, o palabras clave para filtrar.` }],
-        });
-        
         const res = await fetch('/api/books');
         const contentType = res.headers.get('content-type');
         
@@ -267,14 +255,12 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
           />
-          {/* MODIFICACIÓN: Altura máxima extendida en celular y bordes suavizados */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             className="relative w-full max-w-2xl bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]"
           >
-            {/* Header - MODIFICACIÓN: Paddings reducidos en celular y flex-wrap añadido a los deudores */}
             <div className="p-5 sm:p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
               <div>
                 <h2 className="text-2xl sm:text-3xl font-black text-[var(--color-primary)] leading-tight flex flex-wrap items-center gap-2">
@@ -295,9 +281,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               </button>
             </div>
 
-            {/* Content - MODIFICACIÓN: Paddings reducidos en celular */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 sm:space-y-8">
-              {/* Client Section */}
               <div className="space-y-3 sm:space-y-4">
                 <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Comprador</label>
                 <div className="relative">
@@ -346,7 +330,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                 </div>
               </div>
 
-              {/* Items Section */}
               <div className="space-y-3 sm:space-y-4">
                 <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Productos</label>
                 <div className="space-y-3">
@@ -369,23 +352,19 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         </div>
                         <div className="flex-1">
                           <h4 className="font-bold text-sm leading-tight pr-8 sm:pr-0">{item.title}</h4>
-                          
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
-                            
                             {!item.bookId.startsWith('custom_') && (
                               <span className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
                                 Stock: {item.stock}
                               </span>
                             )}
-
                             {(item.stock === 0 || item.quantity > item.stock) && !item.bookId.startsWith('custom_') && (
                               <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
                                 Sin Stock
                               </span>
                             )}
                           </div>
-
                         </div>
                       </div>
                       
@@ -520,7 +499,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                 </div>
               </div>
 
-              {/* Payment Section */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-5 sm:pt-6 border-t border-[var(--color-warm-surface)]">
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Monto Pagado</label>
@@ -566,7 +544,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               </div>
             </div>
 
-            {/* Footer - MODIFICACIÓN: Paddings y tamaños de texto reducidos en celular */}
             <div className="p-4 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-3 sm:gap-4 shrink-0">
               <button
                 onClick={onClose}
@@ -593,7 +570,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
         </div>
       )}
 
-      {/* Popup de Confirmación PiggyBank */}
       <AnimatePresence>
         {showOverpayConfirm && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">

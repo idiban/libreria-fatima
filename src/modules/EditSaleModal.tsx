@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem, SaleRecord } from '../types';
-import { GoogleGenAI } from "@google/genai";
 
 interface EditSaleModalProps {
   isOpen: boolean;
@@ -102,11 +101,6 @@ export default function EditSaleModal({ isOpen, onClose, sale, currentUser, onSa
     if (term.length > 2) {
       setIsSearching(true);
       try {
-        const ai = new GoogleGenAI({ apiKey: (process.env.GEMINI_API_KEY as string) });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: [{ text: `Basado en el término de búsqueda "${term}", identifica qué libros del catálogo podrían coincidir. Responde solo con una lista de IDs de libros si los conoces, o palabras clave para filtrar.` }],
-        });
         
         const res = await fetch('/api/books');
         const contentType = res.headers.get('content-type');
