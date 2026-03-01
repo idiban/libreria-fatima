@@ -59,10 +59,10 @@ export default function ConfirmationModal({
 
             {/* Footer */}
             <div className="p-8 bg-[#FFF9F5] border-t border-[#FDF2F0] flex gap-4">
-              <button
+             <button
                 onClick={onClose}
                 disabled={isLoading}
-                className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 hover:bg-gray-100 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-4 px-6 rounded-2xl font-black bg-gray-200 hover:bg-gray-300 text-gray-700 transition-all flex items-center justify-center gap-2"
               >
                 {cancelText}
               </button>

@@ -421,311 +421,315 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-4xl bg-white rounded-[1.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full max-h-[98vh] sm:max-h-[90vh]"
-          >
-            <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
-              {/* Header - MODIFICACIÓN: Paddings y textos más compactos en móvil */}
-              <div className="p-4 sm:p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
-                <div>
-                  <h2 className="text-xl sm:text-3xl font-black text-[var(--color-primary)]">
-                    {editingBook ? 'Editar Libro' : 'Nuevo Libro'}
-                  </h2>
-                  <p className="text-gray-500 font-medium text-xs sm:text-sm">Completa la información</p>
-                </div>
-                <button type="button" onClick={onClose} className="p-1.5 sm:p-2 hover:bg-white rounded-full transition-colors shadow-sm">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Content - MODIFICACIÓN: Paddings reducidos en móvil y espacios entre campos más pequeños */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
-                  {/* Left Column: Images */}
-                  <div className="space-y-6 sm:space-y-8">
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <div className="space-y-3">
-                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
-                        <div 
-                          className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
-                        >
-                          {formData.cover_url ? (
-                            <>
-                              <img src={formData.cover_url} alt="" className="w-full h-full object-cover bg-black/5" />
-                              {isRefiningFront && (
-                                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
-                                  <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                  <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2" onClick={() => frontInputRef.current?.click()}>
-                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
-                                <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
-                              </div>
-                              <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
-                            </div>
-                          )}
-                          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                            <button 
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); frontCameraRef.current?.click(); }}
-                              className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
-                            >
-                              <Camera className="w-4 h-4" />
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); frontInputRef.current?.click(); }}
-                              className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
-                            >
-                              <Upload className="w-4 h-4" />
-                            </button>
-                            {formData.cover_url && (
-                              <button 
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeImage('front'); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <input type="file" ref={frontInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'front')} />
-                        <input type="file" ref={frontCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'front')} />
-                      </div>
-                      <div className="space-y-3">
-                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
-                        <div 
-                          className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
-                        >
-                          {formData.contraportada_url ? (
-                            <>
-                              <img src={formData.contraportada_url} alt="" className="w-full h-full object-cover bg-black/5" />
-                              {isRefiningBack && (
-                                <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
-                                  <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                  <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2" onClick={() => backInputRef.current?.click()}>
-                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
-                                <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
-                              </div>
-                              <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
-                            </div>
-                          )}
-                          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                            <button 
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); backCameraRef.current?.click(); }}
-                              className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
-                            >
-                              <Camera className="w-4 h-4" />
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); backInputRef.current?.click(); }}
-                              className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
-                            >
-                              <Upload className="w-4 h-4" />
-                            </button>
-                            {formData.contraportada_url && (
-                              <button 
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeImage('back'); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <input type="file" ref={backInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'back')} />
-                        <input type="file" ref={backCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'back')} />
-                      </div>
-                    </div>
-
-                    {isScanningFields ? (
-                      <div className="w-full py-3 sm:py-4 bg-[var(--color-warm-surface)] text-[var(--color-primary)] border-2 border-[var(--color-primary)]/10 rounded-xl sm:rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-xs sm:text-base">
-                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                        Escaneando información...
-                      </div>
-                    ) : (
-                      (formData.cover_url || formData.contraportada_url) && (
-                        <button
-                          type="button"
-                          onClick={scanWithAI}
-                          className="w-full py-3 sm:py-4 bg-[var(--color-primary)] text-white rounded-xl sm:rounded-2xl font-black flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all text-xs sm:text-base"
-                        >
-                          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
-                          Completar automáticamente
-                        </button>
-                      )
-                    )}
-                    
-                    {showAiReminder && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 text-[10px] sm:text-xs font-bold flex items-center gap-2"
-                      >
-                        <Sparkles className="w-4 h-4 shrink-0" />
-                        Recuerda revisar los campos antes de guardar
-                      </motion.div>
-                    )}
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <div key="main-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-4xl bg-white rounded-[1.5rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col h-full max-h-[98vh] sm:max-h-[90vh]"
+            >
+              <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+                {/* Header - MODIFICACIÓN: Paddings y textos más compactos en móvil */}
+                <div className="p-4 sm:p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
+                  <div>
+                    <h2 className="text-xl sm:text-3xl font-black text-[var(--color-primary)]">
+                      {editingBook ? 'Editar Libro' : 'Nuevo Libro'}
+                    </h2>
+                    <p className="text-gray-500 font-medium text-xs sm:text-sm">Completa la información</p>
                   </div>
+                  <button type="button" onClick={onClose} className="p-1.5 sm:p-2 hover:bg-white rounded-full transition-colors shadow-sm">
+                    <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                  </button>
+                </div>
 
-                  {/* Right Column: Fields - MODIFICACIÓN: Inputs más pequeños en móvil */}
-                  <div className="space-y-4 sm:space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Título</label>
-                      <input
-                        type="text"
-                        name="title"
-                        className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.title ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
-                        value={formData.title}
-                        onChange={(e) => {
-                          handleInputChange(e);
-                          if (errors.title) setErrors(prev => ({ ...prev, title: false }));
-                        }}
-                      />
-                      {duplicateWarning && (
-                        <p className="text-[10px] sm:text-xs font-bold text-orange-500 mt-1 animate-pulse leading-tight">
-                          <span className="font-black uppercase tracking-widest">Aviso:</span> {duplicateWarning.replace('Aviso: ', '')}
-                        </p>
+                {/* Content - MODIFICACIÓN: Paddings reducidos en móvil y espacios entre campos más pequeños */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
+                    {/* Left Column: Images */}
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                        <div className="space-y-3">
+                          <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
+                          <div 
+                            className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
+                          >
+                            {formData.cover_url ? (
+                              <>
+                                <img src={formData.cover_url} alt="" className="w-full h-full object-cover bg-black/5" />
+                                {isRefiningFront && (
+                                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
+                                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
+                                    <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2" onClick={() => frontInputRef.current?.click()}>
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
+                                  <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
+                                </div>
+                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
+                              </div>
+                            )}
+                            <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); frontCameraRef.current?.click(); }}
+                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                              >
+                                <Camera className="w-4 h-4" />
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); frontInputRef.current?.click(); }}
+                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
+                              >
+                                <Upload className="w-4 h-4" />
+                              </button>
+                              {formData.cover_url && (
+                                <button 
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeImage('front'); }}
+                                  className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <input type="file" ref={frontInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'front')} />
+                          <input type="file" ref={frontCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'front')} />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
+                          <div 
+                            className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
+                          >
+                            {formData.contraportada_url ? (
+                              <>
+                                <img src={formData.contraportada_url} alt="" className="w-full h-full object-cover bg-black/5" />
+                                {isRefiningBack && (
+                                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2">
+                                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
+                                    <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2" onClick={() => backInputRef.current?.click()}>
+                                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm">
+                                  <Upload className="w-5 h-5 sm:w-6 sm:h-6" />
+                                </div>
+                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
+                              </div>
+                            )}
+                            <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); backCameraRef.current?.click(); }}
+                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                              >
+                                <Camera className="w-4 h-4" />
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); backInputRef.current?.click(); }}
+                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
+                              >
+                                <Upload className="w-4 h-4" />
+                              </button>
+                              {formData.contraportada_url && (
+                                <button 
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeImage('back'); }}
+                                  className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <input type="file" ref={backInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'back')} />
+                          <input type="file" ref={backCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'back')} />
+                        </div>
+                      </div>
+
+                      {isScanningFields ? (
+                        <div className="w-full py-3 sm:py-4 bg-[var(--color-warm-surface)] text-[var(--color-primary)] border-2 border-[var(--color-primary)]/10 rounded-xl sm:rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-xs sm:text-base">
+                          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                          Escaneando información...
+                        </div>
+                      ) : (
+                        (formData.cover_url || formData.contraportada_url) && (
+                          <button
+                            type="button"
+                            onClick={scanWithAI}
+                            className="w-full py-3 sm:py-4 bg-[var(--color-primary)] text-white rounded-xl sm:rounded-2xl font-black flex items-center justify-center gap-2 sm:gap-3 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all text-xs sm:text-base"
+                          >
+                            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                            Completar automáticamente
+                          </button>
+                        )
+                      )}
+                      
+                      {showAiReminder && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 text-[10px] sm:text-xs font-bold flex items-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4 shrink-0" />
+                          Recuerda revisar los campos antes de guardar
+                        </motion.div>
                       )}
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Autor</label>
-                      <input
-                        type="text"
-                        name="author"
-                        className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.author ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
-                        value={formData.author}
-                        onChange={(e) => {
-                          handleInputChange(e);
-                          if (errors.author) setErrors(prev => ({ ...prev, author: false }));
-                        }}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 sm:gap-6">
+
+                    {/* Right Column: Fields - MODIFICACIÓN: Inputs más pequeños en móvil */}
+                    <div className="space-y-4 sm:space-y-6">
                       <div className="space-y-2">
-                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Precio</label>
-                        <div className="relative">
-                          <input
-                            ref={priceInputRef}
-                            type="number"
-                            name="price"
-                            className={`w-full pl-4 sm:pl-5 pr-10 sm:pr-12 py-3 sm:py-4 bg-gray-100 border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                            value={formData.price}
-                            onChange={(e) => {
-                              handleInputChange(e);
-                              if (errors.price) setErrors(prev => ({ ...prev, price: false }));
-                            }}
-                          />
-                          <div className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 flex flex-col">
-                            <button type="button" onClick={() => adjustPrice(1000)} className="p-1 sm:p-1 hover:text-[var(--color-primary)]"><ChevronUp className="w-4 h-4" /></button>
-                            <button type="button" onClick={() => adjustPrice(-1000)} className="p-1 sm:p-1 hover:text-[var(--color-primary)]"><ChevronDown className="w-4 h-4" /></button>
-                          </div>
-                        </div>
+                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Título</label>
+                        <input
+                          type="text"
+                          name="title"
+                          className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.title ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
+                          value={formData.title}
+                          onChange={(e) => {
+                            e.target.value = e.target.value.replace(/[0-9]/g, '');
+                            handleInputChange(e);
+                            if (errors.title) setErrors(prev => ({ ...prev, title: false }));
+                          }}
+                        />
+                        {duplicateWarning && (
+                          <p className="text-[10px] sm:text-xs font-bold text-orange-500 mt-1 animate-pulse leading-tight">
+                            <span className="font-black uppercase tracking-widest">Aviso:</span> {duplicateWarning.replace('Aviso: ', '')}
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Stock</label>
+                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Autor</label>
                         <input
-                          type="number"
-                          name="stock"
-                          className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl`}
-                          value={formData.stock}
+                          type="text"
+                          name="author"
+                          className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.author ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
+                          value={formData.author}
                           onChange={(e) => {
                             handleInputChange(e);
-                            if (errors.stock) setErrors(prev => ({ ...prev, stock: false }));
+                            if (errors.author) setErrors(prev => ({ ...prev, author: false }));
                           }}
                         />
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Categoría</label>
-                      <input
-                        type="text"
-                        name="category"
-                        className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.category ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
-                        value={formData.category}
-                        onChange={(e) => {
-                          handleInputChange(e);
-                          if (errors.category) setErrors(prev => ({ ...prev, category: false }));
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Descripción</label>
-                      <textarea
-                        name="description"
-                        rows={3}
-                        className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-medium text-xs sm:text-sm resize-none"
-                        value={formData.description}
-                        onChange={handleInputChange}
-                      />
+                      <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Precio</label>
+                          <div className="relative">
+                            <input
+                              ref={priceInputRef}
+                              type="number"
+                              name="price"
+                              className={`w-full pl-4 sm:pl-5 pr-10 sm:pr-12 py-3 sm:py-4 bg-gray-100 border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
+                              value={formData.price}
+                              onChange={(e) => {
+                                handleInputChange(e);
+                                if (errors.price) setErrors(prev => ({ ...prev, price: false }));
+                              }}
+                            />
+                            <div className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 flex flex-col">
+                              <button type="button" onClick={() => adjustPrice(1000)} className="p-1 sm:p-1 hover:text-[var(--color-primary)]"><ChevronUp className="w-4 h-4" /></button>
+                              <button type="button" onClick={() => adjustPrice(-1000)} className="p-1 sm:p-1 hover:text-[var(--color-primary)]"><ChevronDown className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Stock</label>
+                          <input
+                            type="number"
+                            name="stock"
+                            className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl`}
+                            value={formData.stock}
+                            onChange={(e) => {
+                              handleInputChange(e);
+                              if (errors.stock) setErrors(prev => ({ ...prev, stock: false }));
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Categoría</label>
+                        <input
+                          type="text"
+                          name="category"
+                          className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.category ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
+                          value={formData.category}
+                          onChange={(e) => {
+                            e.target.value = e.target.value.replace(/[0-9]/g, '');
+                            handleInputChange(e);
+                            if (errors.category) setErrors(prev => ({ ...prev, category: false }));
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Descripción</label>
+                        <textarea
+                          name="description"
+                          rows={3}
+                          className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-medium text-xs sm:text-sm resize-none"
+                          value={formData.description}
+                          onChange={handleInputChange}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Footer - MODIFICACIÓN: Paddings reducidos y botones más pequeños en móvil */}
-              <div className="p-4 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex flex-col gap-3 sm:gap-4 shrink-0">
-                {validationError && (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-bold flex items-center gap-2"
-                  >
-                    <X className="w-4 h-4 shrink-0" />
-                    {validationError}
-                  </motion.div>
-                )}
-                <div className="flex gap-2 sm:gap-4">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="flex-1 py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-gray-400 bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm text-sm sm:text-base"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-sm sm:text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50"
-                  >
-                    {isLoading ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" /> : <><Save className="w-5 h-5 sm:w-6 sm:h-6" /> Guardar Libro</>}
-                  </button>
+                {/* Footer - MODIFICACIÓN: Paddings reducidos y botones más pequeños en móvil */}
+                <div className="p-4 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex flex-col gap-3 sm:gap-4 shrink-0">
+                  {validationError && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-bold flex items-center gap-2"
+                    >
+                      <X className="w-4 h-4 shrink-0" />
+                      {validationError}
+                    </motion.div>
+                  )}
+                  <div className="flex gap-2 sm:gap-4">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="flex-1 py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-gray-400 bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm text-sm sm:text-base"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-sm sm:text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50"
+                    >
+                      {isLoading ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" /> : <><Save className="w-5 h-5 sm:w-6 sm:h-6" /> Guardar Libro</>}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Confirmation Modal */}
       <AnimatePresence>
         {showPriceConfirm && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div key="confirm-modal" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -773,6 +777,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
           </div>
         )}
       </AnimatePresence>
-    </AnimatePresence>
+    </>
   );
 }
