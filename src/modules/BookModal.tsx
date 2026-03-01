@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem } from '../types';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface BookModalProps {
   isOpen: boolean;
@@ -119,57 +118,24 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     if (side === 'front') setIsRefiningFront(true);
     else setIsRefiningBack(true);
 
-    const callAI = async (retryCount = 0): Promise<any> => {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "") {
-        throw new Error("API Key no configurada. Por favor, asegúrate de configurar GEMINI_API_KEY en los secretos del panel lateral.");
-      }
-
-      const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta la ${side === 'front' ? 'portada' : 'contraportada'} del libro en la imagen. Corrige la perspectiva para que se vea perfectamente recta, plana y rectangular (vista de escaneo). REGLA OBLIGATORIA: Amplía la ${side === 'front' ? 'portada' : 'contraportada'} al máximo posible de forma que ocupe el 100% exacto de la imagen, de borde a borde. Prohibido dejar márgenes gruesos alrededor. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). Devuelve la imagen perfectamente rectangular, rellenando todo el encuadre de forma gigante.`;
-
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        return await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  data: base64.split(',')[1],
-                  mimeType: "image/jpeg",
-                },
-              },
-              {
-                text: promptText,
-              },
-            ],
-          },
-        });
-      } catch (error: any) {
-        if (error?.message?.includes('429') && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 2000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return callAI(retryCount + 1);
-        }
-        throw error;
-      }
-    };
-
     try {
-      const response = await callAI();
+      const response = await fetch('/api/ai/refine-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, side })
+      });
 
-      let newImage = base64;
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          newImage = `data:image/png;base64,${part.inlineData.data}`;
-          break;
-        }
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Error del servidor');
       }
 
+      const data = await response.json();
+      
       if (side === 'front') {
-        setFormData(prev => ({ ...prev, cover_url: newImage }));
+        setFormData(prev => ({ ...prev, cover_url: data.image }));
       } else {
-        setFormData(prev => ({ ...prev, contraportada_url: newImage }));
+        setFormData(prev => ({ ...prev, contraportada_url: data.image }));
       }
     } catch (error: any) {
       console.error('Error refining image:', error);
@@ -184,73 +150,23 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     if (!formData.cover_url && !formData.contraportada_url) return;
     setIsScanningFields(true);
     
-    const categoriasPermitidas = [
-      "Espiritualidad", 
-      "Filosofía", 
-      "Crisis de la Iglesia", 
-      "Historia", 
-      "Vidas de Santos", 
-    ];
-    
-    const callAI = async (retryCount = 0): Promise<any> => {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey || apiKey === "") {
-        throw new Error("API Key no configurada. Por favor, asegúrate de configurar GEMINI_API_KEY en los secretos del panel lateral.");
-      }
-
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        
-        const promptInstruction = `Analiza estas imágenes de un libro (portada y/o contraportada). Extrae el título, autor, categoría y descripción completa. 
-        IMPORTANTE: 
-        1) En el campo 'title' pon ÚNICAMENTE el título principal del libro, ignora subtítulos or textos secundarios largos. 
-        2) Tanto el título como el autor deben usar mayúsculas y minúsculas correctamente (formato de nombre propio), NUNCA todo en mayúsculas. 
-        3) OBLIGATORIO: Para la 'category', DEBES elegir ESTRICTAMENTE una de esta lista: ${categoriasPermitidas.join(', ')}. Si el libro no encaja perfecto, elige la más cercana.
-        Responde estrictamente en JSON.`;
-
-        const parts: any[] = [{ text: promptInstruction }];
-        
-        if (formData.cover_url) {
-          parts.push({ inlineData: { mimeType: "image/jpeg", data: formData.cover_url.split(',')[1] } });
-        }
-        if (formData.contraportada_url) {
-          parts.push({ inlineData: { mimeType: "image/jpeg", data: formData.contraportada_url.split(',')[1] } });
-        }
-
-        return await ai.models.generateContent({
-          model: "gemini-flash-latest",
-          contents: [{ parts }],
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                author: { type: Type.STRING },
-                // 👇 3. NUEVO: Le forzamos el 'enum' al esquema para que no invente palabras
-                category: { 
-                  type: Type.STRING,
-                  enum: categoriasPermitidas
-                },
-                description: { type: Type.STRING }
-              },
-              required: ["title", "author", "category", "description"]
-            }
-          }
-        });
-      } catch (error: any) {
-        if (error?.message?.includes('429') && retryCount < 3) {
-          const delay = Math.pow(2, retryCount) * 2000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return callAI(retryCount + 1);
-        }
-        throw error;
-      }
-    };
-
     try {
-      const response = await callAI();
-      const result = JSON.parse(response.text || "{}");
+      const response = await fetch('/api/ai/scan-book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cover_url: formData.cover_url,
+          contraportada_url: formData.contraportada_url
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Error del servidor');
+      }
+
+      const result = await response.json();
+      
       setFormData(prev => ({
         ...prev,
         title: result.title || prev.title,
@@ -586,7 +502,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <motion.div 
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 text-[10px] sm:text-xs font-bold flex items-center gap-2"
+                          className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-[10px] sm:text-xs font-bold flex items-center gap-2"
                         >
                           <Sparkles className="w-4 h-4 shrink-0" />
                           Recuerda revisar los campos antes de guardar

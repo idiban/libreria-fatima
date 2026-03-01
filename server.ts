@@ -13,6 +13,7 @@ import usersRouter from "./server/routes/users.ts";
 import authRouter from "./server/routes/auth.ts";
 import statsRouter from "./server/routes/stats.ts";
 import logsRouter from "./server/routes/logs.ts"; // <-- NUEVO
+import aiRoutes from './server/routes/ai.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +38,7 @@ async function startServer() {
   app.use("/api", authRouter);         // <-- Restauramos el login
   app.use("/api/stats", statsRouter);  // <-- Dejamos las stats perfectas
   app.use("/api/logs", logsRouter); // <-- NUEVO
+  app.use('/api/ai', aiRoutes);
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
