@@ -88,8 +88,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         let height = img.height;
 
         // Max dimensions to keep it under 1MB while maintaining quality
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1600;
+        const MAX_WIDTH = 1024;
+        const MAX_HEIGHT = 1024;
 
         if (width > height) {
           if (width > MAX_WIDTH) {
@@ -377,7 +377,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <div className="space-y-3">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
                           <div 
-                            className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
+                            className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.cover_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}
+                            onClick={() => !formData.cover_url && frontInputRef.current?.click()}
                           >
                             {formData.cover_url ? (
                               <>
@@ -428,8 +429,9 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         </div>
                         <div className="space-y-3">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
-                          <div 
-                            className="aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-[var(--color-primary)] hover:bg-[var(--color-warm-surface)] transition-all overflow-hidden group relative"
+                         <div 
+                            className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.cover_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}
+                            onClick={() => !formData.cover_url && frontInputRef.current?.click()}
                           >
                             {formData.contraportada_url ? (
                               <>
