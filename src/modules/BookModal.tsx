@@ -87,9 +87,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         let width = img.width;
         let height = img.height;
 
-        // Max dimensions to keep it under 1MB while maintaining quality
-        const MAX_WIDTH = 1024;
-        const MAX_HEIGHT = 1024;
+        const MAX_WIDTH = 600;
+        const MAX_HEIGHT = 800;
 
         if (width > height) {
           if (width > MAX_WIDTH) {

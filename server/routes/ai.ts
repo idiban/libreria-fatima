@@ -17,14 +17,8 @@ router.post("/refine-image", async (req, res) => {
     const { base64, side } = req.body;
     const ai = new GoogleGenAI({ apiKey });
 
-    //const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta la ${side === 'front' ? 'portada' : 'contraportada'} del libro en la imagen. Corrige la perspectiva para que se vea perfectamente recta, plana y rectangular (vista de escaneo). REGLA OBLIGATORIA: Amplía la ${side === 'front' ? 'portada' : 'contraportada'} al máximo posible de forma que ocupe el 100% exacto de la imagen, de borde a borde. Prohibido dejar márgenes gruesos alrededor. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). Devuelve la imagen perfectamente rectangular, rellenando todo el encuadre de forma gigante.`;
+    const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta la ${side === 'front' ? 'portada' : 'contraportada'} del libro en la imagen. Corrige la perspectiva para que se vea perfectamente recta, plana y rectangular (vista de escaneo). REGLA OBLIGATORIA: Amplía la ${side === 'front' ? 'portada' : 'contraportada'} al máximo posible de forma que ocupe el 100% exacto de la imagen, de borde a borde. Prohibido dejar márgenes gruesos alrededor. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). Devuelve la imagen perfectamente rectangular, rellenando todo el encuadre de forma gigante.`;
     // Prompt optimizado para que la IA trabaje sobre un área más limpia
-    const promptText = `CROP TO EDGES: Detect the book ${side === 'front' ? 'cover' : 'back'}. 
-      Remove ALL background objects. 
-      RESIZE the book so it touches the top, bottom, and side edges of the image. 
-      The book MUST occupy 100% of the resulting image area. 
-      Do NOT leave any margins, borders, padding, or empty space around the book. 
-      The final image must be only the book, perfectly rectangular and touching all four edges.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
