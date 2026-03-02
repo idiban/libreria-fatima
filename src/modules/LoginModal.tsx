@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogIn, User, Key, Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
@@ -15,22 +15,49 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
 
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Cargar todos los usuarios al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      const fetchUsers = async () => {
+        try {
+          const res = await fetch('/api/users');
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setAllUsers(data);
+          }
+        } catch (e) {
+          console.error("Error cargando usuarios:", e);
+        }
+      };
+      fetchUsers();
+    } else {
+      // Limpiar estados al cerrar
+      setAllUsers([]);
+      setSuggestions([]);
+      setLoginForm({ username: '', password: '' });
+      setLoginError('');
+      setShowPassword(false);
+    }
+  }, [isOpen]);
+
+  const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setLoginForm(prev => ({ ...prev, [name]: value }));
     
-    if (name === 'username' && value.length > 1) {
-      try {
-        const res = await fetch(`/api/users/suggest?q=${encodeURIComponent(value)}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setSuggestions(data);
-        } else {
-          setSuggestions([]);
-        }
-      } catch (e) {}
-    } else {
+    if (name === 'username' && value.length > 0) {
+      const normalizedInput = normalizeText(value);
+      const filtered = allUsers.filter(u => 
+        u.username && normalizeText(u.username).includes(normalizedInput)
+      ).slice(0, 3); // Limitar a 3 sugerencias
+      
+      setSuggestions(filtered);
+    } else if (name === 'username') {
       setSuggestions([]);
     }
   };

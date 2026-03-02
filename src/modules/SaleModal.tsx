@@ -16,36 +16,40 @@ import {
   Percent
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookItem, UserProfile, SaleItem } from '../types';
+import { BookItem, UserProfile, SaleItem, SaleRecord } from '../types';
 
-interface SaleModalProps {
+interface SaleFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialBook: BookItem | null;
+  sale?: SaleRecord | null;       // Si viene, es Editar
+  initialBook?: BookItem | null;  // Si viene (y no hay sale), es Crear
   currentUser: UserProfile;
   onSaleSuccess: () => void;
 }
 
-export default function SaleModal({ isOpen, onClose, initialBook, currentUser, onSaleSuccess }: SaleModalProps) {
+export default function SaleFormModal({ isOpen, onClose, sale, initialBook, currentUser, onSaleSuccess }: SaleFormModalProps) {
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
+  const [allClients, setAllClients] = useState<any[]>([]);
+  const [isClientTyping, setIsClientTyping] = useState(false);
   
-  const [items, setItems] = useState<SaleItem[]>(
-    initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []
-  );
+  const [items, setItems] = useState<SaleItem[]>([]);
   
   const [amountPaid, setAmountPaid] = useState<number>(0);
   const [isSearching, setIsSearching] = useState(false);
   const [bookSearchTerm, setBookSearchTerm] = useState('');
   const [bookSuggestions, setBookSuggestions] = useState<BookItem[]>([]);
-  const [allBooks, setAllBooks] = useState<BookItem[]>([]); // NUEVO: Para guardar todo el catálogo
+  const [allBooks, setAllBooks] = useState<BookItem[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [clientNameError, setClientNameError] = useState(false);
   const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
   const [selectedClientCredit, setSelectedClientCredit] = useState<number>(0); 
+  
   const [showOverpayConfirm, setShowOverpayConfirm] = useState(false); 
   const [showDebtConfirm, setShowDebtConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const [isClientSelected, setIsClientSelected] = useState(false);
 
@@ -83,7 +87,6 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const rawTotalItems = booksTotal + articlesTotal;
   
   const discountPercentage = Number(discount) || 0;
-  // Redondeo para evitar decimales infinitos como 5.040.000.001
   const discountAmount = Math.round(rawTotalItems * (discountPercentage / 100));
   
   const total = rawTotalItems - discountAmount;
@@ -93,84 +96,130 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const isFalta = amountPaid < cashNeeded;
   const balanceDifference = Math.abs(amountPaid - cashNeeded);
 
-  const latestSearch = useRef<string>('');
-
-  // NUEVO: Cargar todos los libros en segundo plano al abrir el modal
+  // Cargar libros y clientes en segundo plano
   useEffect(() => {
     if (isOpen) {
-      const fetchAllBooks = async () => {
+      const fetchAllData = async () => {
         try {
-          const res = await fetch('/api/books');
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            setAllBooks(data);
+          const [resBooks, resClients] = await Promise.all([
+            fetch('/api/books'),
+            fetch('/api/clients')
+          ]);
+          
+          const dataBooks = await resBooks.json();
+          if (Array.isArray(dataBooks)) {
+            setAllBooks(dataBooks);
+          }
+
+          const dataClients = await resClients.json();
+          if (Array.isArray(dataClients)) {
+            setAllClients(dataClients);
           }
         } catch (e) {
-          console.error("Error cargando el catálogo:", e);
+          console.error("Error cargando catálogos:", e);
         }
       };
-      fetchAllBooks();
+      fetchAllData();
     }
   }, [isOpen]);
 
+  // Manejo de estados al abrir/cerrar y diferenciar modo Crear/Editar
   useEffect(() => {
     if (!isOpen) {
       setClientNameError(false);
       setPaymentMethodError(false);
       setShowOverpayConfirm(false);
       setShowDebtConfirm(false);
+      setShowDeleteConfirm(false);
+      setAllBooks([]);
+      setAllClients([]);
+      setIsClientTyping(false);
     } else {
-      setItems(
-        initialBook 
-          ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] 
-          : []
-      );
-      setClientName('');
-      setClientId(null);
-      setAmountPaid(0);
-      setSelectedClientDebt(null);
-      setSelectedClientCredit(0);
-      setIsClientSelected(false);
+      if (sale) {
+        // MODO EDITAR
+        setItems(sale.items || []);
+        setClientName(sale.clientName || '');
+        setClientId(sale.clientId || null);
+        setAmountPaid(sale.amountPaid || 0);
+        setIsClientSelected(true); // Evita que sugiera apenas se abre el modal
+        setIsClientTyping(false);
+        setPaymentMethods(Array.isArray(sale.paymentMethod) ? sale.paymentMethod : (sale.paymentMethod ? [sale.paymentMethod as string] : []));
+        setNotes(sale.notes || '');
+        setDiscount(sale.discount || '');
+      } else {
+        // MODO CREAR NUEVA
+        setItems(initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []);
+        setClientName('');
+        setClientId(null);
+        setAmountPaid(0);
+        setSelectedClientDebt(null);
+        setSelectedClientCredit(0);
+        setIsClientSelected(false);
+        setIsClientTyping(false);
+        setPaymentMethods([]);
+        setNotes('');
+        setDiscount('');
+      }
       setBookSearchTerm('');
-      setPaymentMethods([]);
       setPaymentMethodError(false);
-      setNotes('');
-      setDiscount('');
-      setAllBooks([]); // NUEVO: Limpiar memoria al cerrar
+      setClientNameError(false);
     }
-  }, [isOpen, initialBook]);
+  }, [isOpen, sale, initialBook]);
 
+  // Cargar deuda/crédito inicial si la venta ya tiene un cliente asociado (Solo MODO EDITAR)
   useEffect(() => {
-    if (clientName.length > 1 && !isClientSelected) {
-      const fetchSuggestions = async () => {
+    if (isOpen && sale && sale.clientId) {
+      const fetchHistoricalClientData = async () => {
         try {
-          const res = await fetch(`/api/clients/suggest?q=${encodeURIComponent(clientName)}`);
-          const contentType = res.headers.get('content-type');
-          if (contentType && contentType.indexOf('application/json') !== -1) {
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              setClientSuggestions(data);
-            } else {
-              setClientSuggestions([]);
+          const res = await fetch(`/api/clients/${sale.clientId}/history`);
+          const data = await res.json();
+          if (data.history) {
+            let runningBal = 0;
+            let foundDebt = 0;
+            let foundCredit = 0;
+            
+            const sorted = [...data.history].sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+            
+            for (const entry of sorted) {
+              if (entry.id === sale.id) {
+                foundDebt = runningBal > 0 ? runningBal : 0;
+                foundCredit = runningBal < 0 ? Math.abs(runningBal) : 0;
+                break;
+              }
+              if (entry.type === 'payment') {
+                runningBal -= Number(entry.amount || 0);
+              } else {
+                runningBal += Number(entry.total || 0) - Number(entry.amountPaid || 0);
+              }
             }
-          } else {
-            setClientSuggestions([]);
+            
+            setSelectedClientDebt(foundDebt);
+            setSelectedClientCredit(foundCredit);
           }
         } catch (e) {}
       };
-      fetchSuggestions();
+      fetchHistoricalClientData();
+    }
+  }, [isOpen, sale]);
+
+  // Sugerencias de clientes locales y limitadas a 3
+  useEffect(() => {
+    if (clientName.length > 0 && isClientTyping && !isClientSelected) {
+      const normalizedInput = normalizeText(clientName);
+      const filtered = allClients.filter(c => 
+        c.name && normalizeText(c.name).includes(normalizedInput)
+      ).slice(0, 3);
+      
+      setClientSuggestions(filtered);
     } else {
       setClientSuggestions([]);
-      if (clientName.length <= 1) {
-        setIsClientSelected(false);
-      }
     }
-  }, [clientName, isClientSelected]);
+  }, [clientName, isClientTyping, isClientSelected, allClients]);
 
   const handleBookSearch = (term: string) => {
     setBookSearchTerm(term);
 
-    if (term.length > 2) {
+    if (term.length > 0) {
       const normalizedTerm = normalizeText(term);
       const filtered = allBooks.filter(b => 
         normalizeText(b.title).includes(normalizedTerm) || 
@@ -228,6 +277,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   };
 
   const removeItem = (bookId: string) => {
+    if (sale && items.length === 1) return; // En edición no permitimos vaciar el carrito
     setItems(prev => prev.filter(i => i.bookId !== bookId));
   };
 
@@ -242,14 +292,16 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       return;
     }
 
-    if (amountPaid > cashNeeded && !showOverpayConfirm) {
-      setShowOverpayConfirm(true);
-      return;
-    }
-
-    if (amountPaid < cashNeeded && !showDebtConfirm) {
-      setShowDebtConfirm(true);
-      return;
+    // Confirmaciones solo aplican para nueva venta
+    if (!sale) {
+      if (amountPaid > cashNeeded && !showOverpayConfirm) {
+        setShowOverpayConfirm(true);
+        return;
+      }
+      if (amountPaid < cashNeeded && !showDebtConfirm) {
+        setShowDebtConfirm(true);
+        return;
+      }
     }
 
     executeFinalize();
@@ -258,8 +310,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const executeFinalize = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/sales', {
-        method: 'POST',
+      const endpoint = sale ? `/api/sales/${sale.id}` : '/api/sales';
+      const method = sale ? 'PUT' : 'POST';
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items,
@@ -277,17 +332,43 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
       if (response.ok) {
         onSaleSuccess();
+        if (sale) {
+          window.dispatchEvent(new Event('stockUpdated')); 
+        }
         onClose();
       } else {
         const err = await response.json();
         alert(err.error);
       }
     } catch (e) {
-      alert('Error al procesar la venta.');
+      alert(`Error al ${sale ? 'actualizar' : 'procesar'} la venta.`);
     } finally {
       setIsLoading(false);
       setShowOverpayConfirm(false);
       setShowDebtConfirm(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!sale) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/sales/${sale.id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        onSaleSuccess();
+        window.dispatchEvent(new Event('stockUpdated')); 
+        onClose();
+      } else {
+        const err = await response.json();
+        alert(err.error);
+      }
+    } catch (e) {
+      alert('Error al eliminar la venta.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -311,13 +392,22 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               <div className="p-5 sm:p-6 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-black text-[var(--color-primary)] leading-tight flex flex-wrap items-center gap-2">
-                    <span>{clientName || 'Nueva Venta'}</span>
+                    <span>{sale ? 'Editar Venta' : (clientName || 'Nueva Venta')}</span>
                   </h2>
-                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Carrito de Compras</p>
+                  <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
+                    {sale ? 'Modifica o elimina la venta' : 'Carrito de Compras'}
+                  </p>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors shadow-sm">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-                </button>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {sale && (
+                    <button onClick={() => setShowDeleteConfirm(true)} className="p-2 hover:bg-red-50 text-red-400 hover:text-red-500 rounded-full transition-colors shadow-sm">
+                      <Trash2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                  )}
+                  <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors shadow-sm">
+                    <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -338,15 +428,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         setSelectedClientDebt(null);
                         setSelectedClientCredit(0);
                         setIsClientSelected(false);
+                        setIsClientTyping(true);
                       }}
                     />
                     {clientNameError && <p className="text-red-500 text-[10px] sm:text-xs font-bold mt-1 ml-2 absolute">Debes ingresar un nombre de comprador.</p>}
-                    {!isClientSelected && clientName.length > 1 && clientSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-amber-50 border-2 border-amber-200 rounded-xl sm:rounded-2xl p-2 sm:p-3 z-50 shadow-lg">
-                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2 flex items-center gap-1">
+                    
+                    {!isClientSelected && isClientTyping && clientName.length > 0 && clientSuggestions.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-amber-50 border border-amber-200 rounded-xl p-1.5 z-50 shadow-lg">
+                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 flex items-center gap-1 px-1">
                           <AlertCircle className="w-3 h-3" /> ¿Quisiste decir alguno de estos?
                         </p>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {clientSuggestions.map((c) => (
                             <button
                               key={c.id}
@@ -356,12 +448,13 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                                 setSelectedClientDebt(c.totalDebt || 0);
                                 setSelectedClientCredit(c.creditBalance || 0);
                                 setIsClientSelected(true);
+                                setIsClientTyping(false);
                                 setClientSuggestions([]);
                               }}
-                              className="w-full px-3 py-2 text-left bg-white hover:bg-amber-100 rounded-lg sm:rounded-xl transition-colors flex items-center justify-between border border-amber-100"
+                              className="w-full px-2 py-1.5 text-left bg-white hover:bg-amber-100 rounded-lg transition-colors flex items-center justify-between border border-amber-100"
                             >
-                              <span className="font-bold text-xs sm:text-sm text-amber-900">{c.name}</span>
-                              <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest">Usar Existente</span>
+                              <span className="font-bold text-xs text-amber-900 truncate pr-2">{c.name}</span>
+                              <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest shrink-0">Usar</span>
                             </button>
                           ))}
                         </div>
@@ -455,7 +548,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         <X className="w-4 h-4" />
                       </button>
                     ) : null}
-                    {bookSearchTerm.length > 2 && bookSuggestions.length > 0 && (
+                    {bookSearchTerm.length > 0 && bookSuggestions.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 max-h-48 overflow-y-auto">
                         {bookSuggestions.map((b) => (
                           <button
@@ -659,6 +752,13 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                             <span className="text-emerald-600 font-bold">${formatPrice(selectedClientCredit)}</span>
                           </div>
                         )}
+
+                        {amountPaid > 0 && (
+                          <div className="flex justify-between items-center pt-2 mt-2 border-t border-dashed border-gray-200">
+                            <span className="text-gray-600 font-bold">Monto a pagar:</span> 
+                            <span className="text-emerald-600 font-black">${formatPrice(amountPaid)}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className={`mt-3 pt-3 border-t-2 flex justify-between items-center ${isFalta ? 'border-red-200' : 'border-emerald-200'}`}>
@@ -699,7 +799,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   ) : (
                     <>
                       <Check className="w-5 h-5" />
-                      Listo
+                      {sale ? 'Guardar Cambios' : 'Listo'}
                     </>
                   )}
                 </button>
@@ -741,6 +841,33 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sí, registrarlo como deuda'}
                 </button>
                 <button onClick={() => setShowDebtConfirm(false)} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-gray-200 text-gray-700 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 text-sm sm:text-base">No, corregir monto</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isDeleting && setShowDeleteConfirm(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl z-10">
+              <h3 className="text-xl sm:text-2xl font-black text-[var(--color-primary)] mb-2">¿Eliminar Venta?</h3>
+              <p className="text-gray-500 font-medium mb-6 text-sm sm:text-base">Esta acción restaurará el stock de los libros y ajustará la deuda del cliente. No se puede deshacer.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Eliminar'}
+                </button>
               </div>
             </motion.div>
           </div>

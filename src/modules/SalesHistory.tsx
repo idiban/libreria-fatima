@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { History, Search, Calendar, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SaleRecord, UserProfile } from '../types';
-import EditSaleModal from './EditSaleModal';
+import EditSaleModal from './SaleModal';
 
 interface SalesHistoryProps {
   currentUser: UserProfile;
