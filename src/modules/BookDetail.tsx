@@ -24,27 +24,26 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
       exit={{ opacity: 0, x: -20 }}
       className="min-h-full flex flex-col"
     >
-      {/* Encabezado pegajoso */}
+      {/* Botón Volver fijo arriba a la izquierda */}
       <div className="sticky top-0 z-30 bg-[var(--color-warm-bg)]/80 backdrop-blur-md py-4 px-6 sm:px-10 flex items-center shrink-0">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-gray-500 hover:text-[var(--color-primary)] transition-colors group"
+          className="flex items-center gap-2 bg-white text-gray-600 border border-[var(--color-warm-surface)] px-4 py-2.5 rounded-2xl font-black shadow-sm hover:ring-2 hover:ring-[var(--color-primary)] hover:text-[var(--color-primary)] transition-all group text-sm"
         >
-          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="font-bold">Volver al catálogo</span>
+          <ChevronLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+          <span>Volver al Catálogo</span>
         </button>
       </div>
 
-      <div className="flex-1 p-4 md:p-6 lg:p-10">
+      {/* CONTENEDOR DEL LIBRO */}
+      <div className="flex-1 pb-10">
         <div className="max-w-6xl mx-auto flex flex-col bg-white rounded-[3rem] p-6 sm:p-8 lg:p-12 shadow-xl border border-[#FDF2F0]">
           
-          {/* MODIFICACIÓN: Uso de flex en lugar de grid 50/50 para aprovechar el espacio */}
           <div className="flex flex-col md:flex-row gap-8 lg:gap-16 items-start">
             
-            {/* Sección de Imagen (Izquierda) - Contenedor ajustado a la imagen */}
+            {/* Sección de Imagen (Izquierda) */}
             <div className="w-full md:w-[260px] lg:w-[280px] shrink-0 space-y-4 flex flex-col items-center mx-auto md:mx-0">
               
-              {/* Imagen Principal */}
               <div className="aspect-[3/4] w-full max-w-[200px] md:max-w-full rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner">
                 {activeImage === 'cover' ? (
                   book.cover_url ? (
@@ -69,7 +68,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                 )}
               </div>
               
-              {/* Miniaturas para cambiar de portada a contraportada */}
+              {/* Miniaturas */}
               {book.contraportada_url && (
                 <div className="flex gap-3 justify-center mt-2">
                   <button 
@@ -98,30 +97,31 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
               )}
             </div>
 
-            {/* Sección de Info Principal y Descripción (Derecha) - Ocupa TODO el espacio restante */}
-            <div className="flex-1 w-full flex flex-col space-y-8">
+            {/* Sección de Info Principal y Descripción (Derecha) */}
+            <div className="flex-1 w-full flex flex-col">
+              
               {/* Bloque de Información del Libro */}
-              <div>
+              <div className="mb-6">
                 {book.category && (
-                  <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">
+                  <span className="inline-block px-4 py-1.5 bg-[var(--color-warm-surface)] rounded-full text-xs font-black uppercase tracking-widest text-[var(--color-primary)] mb-4">
                     {book.category}
                   </span>
                 )}
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#2D1A1A] leading-tight mb-3 sm:mb-4">{book.title}</h1>
-                <p className="text-lg text-gray-400 font-bold mb-4 sm:mb-6">{book.author}</p>
+                <p className="text-lg text-gray-400 font-bold mb-4">{book.author}</p>
                 
-                <div className="flex items-center gap-6 mb-8">
+                <div className="flex items-center gap-6">
                   <p className="text-4xl sm:text-5xl font-black text-[var(--color-primary)]">${formatPrice(book.price)}</p>
                 </div>
 
                 {currentUser && (
-                  <div className="mt-4 max-w-sm">
+                  <div className="mt-6 max-w-sm">
                     <button
                       onClick={() => onSaleClick(book)}
                       disabled={book.stock <= 0}
-                      className="w-full bg-[#B23B23] hover:bg-[#962D1A] text-white py-4 sm:py-5 rounded-[2rem] font-black text-lg shadow-2xl shadow-[#B23B23]/30 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-[var(--color-primary)] text-white py-4 sm:py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                     >
-                      <ShoppingCart className="w-6 h-6" />
+                      <ShoppingCart className="w-6 h-6 shrink-0" />
                       Vender este libro
                     </button>
                   </div>
@@ -129,8 +129,8 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
               </div>
 
               {/* Bloque de Descripción */}
-              <div className="w-full pt-8 border-t border-[#FDF2F0]">
-                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Descripción</h3>
+              <div className="w-full pt-6 border-t border-[#FDF2F0]">
+                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Descripción</h3>
                 <p className="text-gray-600 leading-relaxed text-base sm:text-lg whitespace-pre-line">
                   {book.description || 'Sin descripción disponible.'}
                 </p>
