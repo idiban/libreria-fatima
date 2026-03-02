@@ -472,24 +472,24 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                     {!showCustomItemForm ? (
                       <button
                         onClick={() => setShowCustomItemForm(true)}
-                        className="flex items-center gap-1 text-[var(--color-primary)] font-bold text-xs uppercase tracking-widest hover:opacity-70 transition-opacity ml-1"
+                        className="w-full py-3.5 mt-2 flex items-center justify-center gap-2 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-2 border-dashed border-[var(--color-primary)]/30 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all group"
                       >
-                        <Plus className="w-4 h-4" /> Agregar artículo
+                        <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> Añadir artículo manual
                       </button>
                     ) : (
-                      <div className="p-3 bg-[var(--color-warm-bg)] border border-dashed border-[var(--color-primary)] rounded-xl flex flex-col sm:flex-row gap-2 items-start sm:items-center mt-2">
+                      <div className="p-3 sm:p-4 bg-[var(--color-primary)]/5 border-2 border-dashed border-[var(--color-primary)]/40 rounded-2xl flex flex-col sm:flex-row gap-3 items-start sm:items-center mt-2 transition-all">
                         <div className="flex-1 w-full">
                           <input
                             type="text"
                             placeholder="Nombre del artículo..."
                             value={customItemName}
                             onChange={(e) => setCustomItemName(capitalizeWords(e.target.value))}
-                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] text-xs font-bold transition-all"
+                            className="w-full px-4 py-2.5 bg-white border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl outline-none text-sm font-bold transition-all shadow-sm"
                           />
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto">
-                          <div className="relative w-full sm:w-28">
-                            <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <div className="relative w-full sm:w-32">
+                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <input
                               type="text"
                               placeholder="Precio"
@@ -498,15 +498,15 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                                 const val = e.target.value.replace(/\D/g, '');
                                 setCustomItemPrice(val);
                               }}
-                              className="w-full pl-7 pr-2 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] text-xs font-bold transition-all"
+                              className="w-full pl-9 pr-3 py-2.5 bg-white border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl outline-none text-sm font-bold transition-all shadow-sm"
                             />
                           </div>
                           <button 
                             onClick={handleAddCustomItem}
                             disabled={!customItemName.trim() || !customItemPrice}
-                            className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
+                            className="p-2.5 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:grayscale shrink-0"
                           >
-                            <Check className="w-4 h-4" />
+                            <Check className="w-5 h-5" />
                           </button>
                           <button 
                             onClick={() => {
@@ -514,9 +514,9 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                               setCustomItemName('');
                               setCustomItemPrice('');
                             }}
-                            className="p-2 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg transition-colors shrink-0"
+                            className="p-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-400 hover:text-red-500 rounded-xl transition-all shadow-sm active:scale-95 shrink-0"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-5 h-5" />
                           </button>
                         </div>
                       </div>
@@ -574,7 +574,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                                 <Plus className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeItem(item.bookId); }} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors">
+                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeItem(item.bookId); }} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
