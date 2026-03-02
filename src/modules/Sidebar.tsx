@@ -47,7 +47,7 @@ export default function Sidebar({
     { id: 'debtors', label: 'Deudas', icon: UserCheck, roles: ['owner', 'admin', 'vendedor'] },
     { id: 'stats', label: 'Estadísticas', icon: TrendingUp, roles: ['owner', 'admin'] },
     { id: 'users', label: 'Administración', icon: Users, roles: ['owner', 'admin'] },
-    { id: 'logs', label: 'Logs', icon: ClipboardList, roles: ['owner', 'admin'] },
+    { id: 'logs', label: 'Logs', icon: ClipboardList, roles: ['owner'] },
   ];
 
   const filteredItems = menuItems.filter(item => 

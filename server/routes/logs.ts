@@ -1,14 +1,14 @@
 import express from "express";
 import { getFirestore } from "../firebase.ts";
+import { checkRole } from "../middleware.ts"; 
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", checkRole(["owner"]), async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    // Traemos los últimos 100 registros ordenados por el más reciente
     const snapshot = await firestore.collection("logs")
       .orderBy("timestamp", "desc")
       .limit(100)

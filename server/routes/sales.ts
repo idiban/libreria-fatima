@@ -42,7 +42,6 @@ router.post("/", async (req, res) => {
       const currentCredit = clientDoc?.exists ? (clientDoc.data().creditBalance || 0) : 0;
       
       let effectiveAmountForThisSale = Number(amountPaid);
-      let remainingSurplus = 0;
 
       // 1. Si el cliente tiene crédito previo, lo usamos para "pagar" esta venta primero
       if (currentCredit > 0) {
@@ -50,31 +49,7 @@ router.post("/", async (req, res) => {
         effectiveAmountForThisSale += creditToUse;
       }
 
-      // 2. Si el pago (más el crédito usado) supera el total de la venta, pagamos deudas viejas
-      if (effectiveAmountForThisSale > Number(total) && clientId && currentDebt > 0) {
-        let surplusToDistribute = effectiveAmountForThisSale - Number(total);
-        
-        const oldSales = await firestore.collection("ventas")
-          .where("clientId", "==", clientId)
-          .orderBy("timestamp", "asc")
-          .get();
-
-        for (const doc of oldSales.docs) {
-          if (surplusToDistribute <= 0) break;
-          const data = doc.data();
-          const saleDebt = (data.total || 0) - (data.amountPaid || 0);
-          
-          if (saleDebt > 0) {
-            const payment = Math.min(surplusToDistribute, saleDebt);
-            transaction.update(doc.ref, { amountPaid: (data.amountPaid || 0) + payment });
-            surplusToDistribute -= payment;
-            // Restamos del monto de esta venta lo que enviamos a las anteriores para que el historial cuadre
-            effectiveAmountForThisSale -= payment;
-          }
-        }
-      }
-
-      // 3. Cálculo de balance final del cliente (Invariante contable) 
+      // 2. Cálculo de balance final del cliente (Invariante contable) 
       const netChange = Number(total) - Number(amountPaid);
       const finalNetBalance = currentDebt - currentCredit + netChange;
 

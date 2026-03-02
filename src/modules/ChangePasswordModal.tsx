@@ -73,7 +73,7 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }: Chan
                   required 
                   value={currentPassword} 
                   onChange={e => setCurrentPassword(e.target.value)} 
-                  className={`w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.current ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
+                  className={`w-full px-5 py-3 bg-gray-200 rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.current ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
                 />
               </div>
               <div className="space-y-1 relative">
@@ -83,7 +83,7 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }: Chan
                   required 
                   value={newPassword} 
                   onChange={e => setNewPassword(e.target.value)} 
-                  className={`w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.new ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
+                  className={`w-full px-5 py-3 bg-gray-200 rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.new ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
                 />
               </div>
               <div className="space-y-1 relative">
@@ -93,7 +93,7 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }: Chan
                   required 
                   value={confirmPassword} 
                   onChange={e => setConfirmPassword(e.target.value)} 
-                  className={`w-full px-5 py-3 bg-[#F9FAFB] rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.confirm ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
+                  className={`w-full px-5 py-3 bg-gray-200 rounded-xl font-bold outline-none focus:ring-2 transition-all ${fieldErrors.confirm ? 'ring-2 ring-red-500' : 'focus:ring-[var(--color-primary)]'}`} 
                 />
                 <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-4 top-9 text-gray-400">
                   {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -101,11 +101,12 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }: Chan
               </div>
               {error && <p className="text-red-500 text-xs font-bold text-center pt-2">{error}</p>}
               <div className="pt-4 flex gap-4">
-                <button type="button" onClick={onClose} className="flex-1 py-4 px-6 rounded-2xl font-black text-gray-400 hover:bg-gray-100 transition-all">
+                <button type="button" onClick={onClose} className="flex-1 py-4 px-2 sm:px-6 rounded-2xl font-black bg-gray-200 text-gray-600 hover:bg-gray-300 transition-all text-sm sm:text-base">
                   Cancelar
                 </button>
-                <button type="submit" disabled={isLoading} className="flex-[2] py-4 bg-[var(--color-primary)] text-white rounded-xl font-black shadow-lg shadow-[var(--color-primary)]/20 flex items-center justify-center gap-2">
-                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Key className="w-5 h-5" />} Cambiar Contraseña
+                <button type="submit" disabled={isLoading} className="flex-[2] py-4 px-2 sm:px-6 bg-[var(--color-primary)] text-white rounded-xl font-black shadow-lg shadow-[var(--color-primary)]/20 flex items-center justify-center gap-2 text-sm sm:text-base leading-tight">
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin shrink-0" /> : <Key className="w-5 h-5 shrink-0" />} 
+                  <span>Cambiar Contraseña</span>
                 </button>
               </div>
             </form>

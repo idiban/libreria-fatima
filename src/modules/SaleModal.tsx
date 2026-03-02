@@ -41,6 +41,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
   const [selectedClientCredit, setSelectedClientCredit] = useState<number>(0); 
   const [showOverpayConfirm, setShowOverpayConfirm] = useState(false); 
+  const [showDebtConfirm, setShowDebtConfirm] = useState(false);
 
   const [isClientSelected, setIsClientSelected] = useState(false);
 
@@ -70,6 +71,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     if (!isOpen) {
       setClientNameError(false);
       setShowOverpayConfirm(false);
+      setShowDebtConfirm(false);
     } else {
       setItems(
         initialBook 
@@ -210,6 +212,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       return;
     }
 
+    if (amountPaid < cashNeeded && !showDebtConfirm) {
+      setShowDebtConfirm(true);
+      return;
+    }
+
     executeFinalize();
   };
 
@@ -242,6 +249,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     } finally {
       setIsLoading(false);
       setShowOverpayConfirm(false);
+      setShowDebtConfirm(false);
     }
   };
 
@@ -583,7 +591,24 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               <p className="text-gray-500 font-medium mb-8 leading-relaxed">¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountPaid - cashNeeded)}</span> como saldo a favor para este cliente?</p>
               <div className="flex flex-col gap-3">
                 <button onClick={executeFinalize} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Sí, guardar saldo</button>
-                <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-50 text-gray-400 rounded-2xl font-black active:scale-95 transition-all">Corregir monto</button>
+                <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-300 text-gray-700 rounded-2xl font-black active:scale-95 transition-all">Corregir monto</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDebtConfirm && (
+          <div key="debt-confirm-modal" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDebtConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-6 sm:p-10 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle className="w-10 h-10 text-red-500" /></div>
+              <h3 className="text-xl sm:text-2xl font-black text-[#2D1A1A] mb-3">¿Generar Deuda?</h3>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> está pagando menos de lo que cuesta, ¿quiere dejarlo como deuda?</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={executeFinalize} className="w-full py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-500/20 active:scale-95 transition-all text-sm sm:text-base">Sí, registrarlo como deuda</button>
+                <button onClick={() => setShowDebtConfirm(false)} className="w-full py-4 bg-gray-300 text-gray-700 rounded-2xl font-black active:scale-95 transition-all text-sm sm:text-base">No, corregir monto</button>
               </div>
             </motion.div>
           </div>
