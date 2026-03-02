@@ -545,7 +545,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   <div className="space-y-4">
                     <div className="flex gap-3">
                       <div className="space-y-1.5 flex-[2]">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Lo que el comprador pagó</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Monto a pagar</label>
                         <div className="relative">
                           <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <input
@@ -570,7 +570,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         </button>
                       </div>
                       <div className="space-y-1.5 flex-1">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Desc. %</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Descuento</label>
                         <div className="relative">
                           <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                           <input

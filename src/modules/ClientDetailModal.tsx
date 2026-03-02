@@ -194,7 +194,7 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
 
                         return (
                           <div key={idx} className={`relative p-4 sm:p-5 rounded-[2rem] border shadow-sm transition-all ${isPayment ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-[var(--color-warm-surface)]'}`}>
-                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3 pr-8">
                               <div className="flex-1 pr-10">
                                 <p className={`font-black text-sm ${isPayment ? 'text-emerald-900' : 'text-[var(--color-primary)]'}`}>
                                   {isPayment ? 'Abono / Pago de Deuda' : `Compra del ${getDebtDate(entry)}`}
@@ -208,6 +208,14 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                   </div>
                                 )}
                                 {!isPayment && entry.notes && <p className="text-[10px] text-gray-500 italic mt-1.5 bg-gray-50 p-2 rounded-lg max-w-sm">"{entry.notes}"</p>}
+                                {!isPayment && entry.sellerName && (
+                                  <div className="flex items-center gap-1.5 mt-2 ml-0.5 opacity-80">
+                                    <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-[8px] font-black shrink-0 uppercase">
+                                      {entry.sellerName[0]}
+                                    </div>
+                                    <p className="text-[9px] font-black text-gray-600 uppercase tracking-widest truncate">Vendedor: {entry.sellerName}</p>
+                                  </div>
+                                )}
                               </div>
                               
                               <div className="flex items-start gap-3 shrink-0">
@@ -222,7 +230,7 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                 </div>
                                 <button
                                   onClick={() => setItemToDelete({ id: entry.id, type: entry.type })}
-                                  className="absolute top-3 right-3 p-1.5 sm:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  className="absolute top-4 right-4 p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                   title="Eliminar registro"
                                 >
                                   <Trash2 className="w-4 h-4" />
