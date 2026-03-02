@@ -39,6 +39,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [isSearching, setIsSearching] = useState(false);
   const [bookSearchTerm, setBookSearchTerm] = useState('');
   const [bookSuggestions, setBookSuggestions] = useState<BookItem[]>([]);
+  const [allBooks, setAllBooks] = useState<BookItem[]>([]); // NUEVO: Para guardar todo el catálogo
   const [isLoading, setIsLoading] = useState(false);
   const [clientNameError, setClientNameError] = useState(false);
   const [selectedClientDebt, setSelectedClientDebt] = useState<number | null>(null);
@@ -94,6 +95,24 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
 
   const latestSearch = useRef<string>('');
 
+  // NUEVO: Cargar todos los libros en segundo plano al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      const fetchAllBooks = async () => {
+        try {
+          const res = await fetch('/api/books');
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setAllBooks(data);
+          }
+        } catch (e) {
+          console.error("Error cargando el catálogo:", e);
+        }
+      };
+      fetchAllBooks();
+    }
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) {
       setClientNameError(false);
@@ -117,6 +136,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       setPaymentMethodError(false);
       setNotes('');
       setDiscount('');
+      setAllBooks([]); // NUEVO: Limpiar memoria al cerrar
     }
   }, [isOpen, initialBook]);
 
@@ -147,39 +167,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     }
   }, [clientName, isClientSelected]);
 
-  const handleBookSearch = async (term: string) => {
+  const handleBookSearch = (term: string) => {
     setBookSearchTerm(term);
-    latestSearch.current = term;
 
     if (term.length > 2) {
-      setIsSearching(true);
-      try {
-        const res = await fetch('/api/books');
-        const contentType = res.headers.get('content-type');
-        
-        if (latestSearch.current !== term) return;
-
-        if (contentType && contentType.indexOf('application/json') !== -1) {
-          const allBooks: BookItem[] = await res.json();
-          if (Array.isArray(allBooks)) {
-            const normalizedTerm = normalizeText(term);
-            const filtered = allBooks.filter(b => 
-              normalizeText(b.title).includes(normalizedTerm) || 
-              normalizeText(b.author).includes(normalizedTerm) ||
-              normalizeText(b.category || '').includes(normalizedTerm)
-            );
-            setBookSuggestions(filtered);
-          } else {
-            setBookSuggestions([]);
-          }
-        } else {
-          setBookSuggestions([]);
-        }
-      } catch (e) {} finally {
-        if (latestSearch.current === term) {
-          setIsSearching(false);
-        }
-      }
+      const normalizedTerm = normalizeText(term);
+      const filtered = allBooks.filter(b => 
+        normalizeText(b.title).includes(normalizedTerm) || 
+        normalizeText(b.author).includes(normalizedTerm) ||
+        normalizeText(b.category || '').includes(normalizedTerm)
+      );
+      setBookSuggestions(filtered);
     } else {
       setBookSuggestions([]);
     }
