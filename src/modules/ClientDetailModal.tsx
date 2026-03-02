@@ -17,7 +17,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ESTADOS PARA ACTUALIZACIÓN VISUAL INSTANTÁNEA
   const [currentDebt, setCurrentDebt] = useState(client?.totalDebt || 0);
   const [currentCredit, setCurrentCredit] = useState(client?.creditBalance || 0);
 
@@ -65,7 +64,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
       const res = await fetch(endpoint, { method: 'DELETE' });
       
       if (res.ok) {
-        // Encontrar el ítem antes de borrarlo para hacer la matemática instantánea
         const deletedItem = history.find(h => h.id === itemToDelete.id);
         
         if (deletedItem) {
@@ -82,7 +80,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
         setHistory(prev => prev.filter(h => h.id !== itemToDelete.id));
         onUpdate(); 
 
-        // ---> ¡NUEVO! Avisar a la app que el stock de libros cambió <---
         if (itemToDelete.type !== 'payment') {
           window.dispatchEvent(new Event('stockUpdated'));
         }
@@ -109,8 +106,27 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
 
   const normalizeText = (text: string) => (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+  const historyWithBalances = React.useMemo(() => {
+    let runningBal = 0;
+    return [...history]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .map(entry => {
+        const debtBefore = runningBal > 0 ? runningBal : 0;
+        const creditBefore = runningBal < 0 ? Math.abs(runningBal) : 0;
+        let netChange = 0;
+        if (entry.type === 'payment') {
+          netChange = -Number(entry.amount || 0);
+        } else {
+          netChange = Number(entry.total || 0) - Number(entry.amountPaid || 0);
+        }
+        runningBal += netChange;
+        return { ...entry, debtBefore, creditBefore };
+      })
+      .reverse();
+  }, [history]);
+
   const normalizedSearch = normalizeText(searchTerm).trim();
-  const filteredHistory = history.filter(entry => {
+  const filteredHistory = historyWithBalances.filter(entry => {
     if (!normalizedSearch) return true;
     const dateStr = normalizeText(getDebtDate(entry));
     const typeStr = entry.type === 'payment' ? 'abono pago' : 'compra realizada';
@@ -160,39 +176,144 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                   </div>
                   {loadingHistory ? (<div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)] mx-auto" /></div>) : filteredHistory.length === 0 ? (<div className="py-10 text-center bg-gray-50 rounded-[2rem] border border-dashed border-gray-200"><p className="text-gray-400 font-medium">No hay registros.</p></div>) : (
                     <div className="space-y-4">
-                      {filteredHistory.map((entry, idx) => (
-                        <div key={idx} className={`p-5 rounded-[2rem] border shadow-sm transition-all ${entry.type === 'payment' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-[var(--color-warm-surface)]'}`}>
-                          <div className="flex justify-between items-start mb-3">
-                            <div>
-                              <p className={`font-black text-sm ${entry.type === 'payment' ? 'text-emerald-900' : 'text-[var(--color-primary)]'}`}>{entry.type === 'payment' ? 'Abono / Pago' : 'Compra Realizada'}</p>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getDebtDate(entry)}</p>
+                     {filteredHistory.map((entry, idx) => {
+                        const isPayment = entry.type === 'payment';
+                        
+                        // Cálculos exactos para recrear el cuadro resumen del carrito
+                        const booksTotal = !isPayment ? (entry.items || []).filter((i:any) => !i.bookId.startsWith('custom_')).reduce((acc:number, item:any) => acc + (item.price * item.quantity), 0) : 0;
+                        const articlesTotal = !isPayment ? (entry.items || []).filter((i:any) => i.bookId.startsWith('custom_')).reduce((acc:number, item:any) => acc + (item.price * item.quantity), 0) : 0;
+                        const rawTotalItems = booksTotal + articlesTotal;
+                        const discountAmount = Math.round(rawTotalItems * ((entry.discount || 0) / 100));
+                        
+                        const netTotalToPay = (entry.total || 0) + (entry.debtBefore || 0);
+                        const cashNeeded = Math.max(0, netTotalToPay - (entry.creditBefore || 0));
+                        const isFalta = (entry.amountPaid || 0) < cashNeeded;
+                        const balanceDifference = Math.abs((entry.amountPaid || 0) - cashNeeded);
+                        const isFavor = (entry.amountPaid || 0) > cashNeeded;
+                        const debtVal = balanceDifference;
+
+                        return (
+                          <div key={idx} className={`relative p-4 sm:p-5 rounded-[2rem] border shadow-sm transition-all ${isPayment ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-[var(--color-warm-surface)]'}`}>
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0 mb-3">
+                              <div className="flex-1 pr-10">
+                                <p className={`font-black text-sm ${isPayment ? 'text-emerald-900' : 'text-[var(--color-primary)]'}`}>
+                                  {isPayment ? 'Abono / Pago de Deuda' : `Compra del ${getDebtDate(entry)}`}
+                                </p>
+                                {isPayment && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getDebtDate(entry)}</p>}
+
+                                {!isPayment && (entry.paymentMethod && entry.paymentMethod.length > 0) && (
+                                  <div className="flex gap-2 mt-2 mb-1">
+                                    {entry.paymentMethod.includes('efectivo') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase tracking-widest">Efectivo</span>}
+                                    {entry.paymentMethod.includes('transferencia') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-widest">Transf.</span>}
+                                  </div>
+                                )}
+                                {!isPayment && entry.notes && <p className="text-[10px] text-gray-500 italic mt-1.5 bg-gray-50 p-2 rounded-lg max-w-sm">"{entry.notes}"</p>}
+                              </div>
+                              
+                              <div className="flex items-start gap-3 shrink-0">
+                                <div className="text-right">
+                                  {isPayment ? (
+                                    <p className="font-black text-lg text-emerald-600">Pagó: ${formatPrice(entry.amount)}</p>
+                                  ) : (
+                                    <p className={`font-black text-sm sm:text-base ${isFavor ? 'text-emerald-500' : 'text-red-500'}`}>
+                                      {isFavor ? 'Abono: ' : 'Deuda: '}${formatPrice(Math.abs(debtVal))}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => setItemToDelete({ id: entry.id, type: entry.type })}
+                                  className="absolute top-3 right-3 p-1.5 sm:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Eliminar registro"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <p className={`font-black text-lg ${entry.type === 'payment' ? 'text-emerald-600' : 'text-gray-600'}`}>${formatPrice(entry.type === 'payment' ? entry.amount : (entry.total || entry.amount))}</p>
-                              <button
-                                onClick={() => setItemToDelete({ id: entry.id, type: entry.type })}
-                                className="p-1.5 sm:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                title="Eliminar registro"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                            
+                            {!isPayment && entry.items?.length > 0 && (
+                              <div className="pt-2 border-t border-gray-100 mb-3">
+                                <ul className="space-y-2 mt-2">
+                                  {entry.items.map((item: any, i: number) => (
+                                    <li key={i} className="flex justify-between items-center text-xs">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-8 h-12 rounded-md bg-gray-50 border overflow-hidden shrink-0 flex items-center justify-center">
+                                          {item.cover_url && !item.bookId?.startsWith('custom_') ? <img src={item.cover_url} alt="" className="w-full h-full object-cover" /> : <span className="text-[8px] font-bold text-gray-300">Art.</span>}
+                                        </div>
+                                        <span className="text-gray-500 font-medium">{item.title} <span className="text-gray-400">(x{item.quantity})</span></span>
+                                      </div>
+                                      <span className="font-bold text-[var(--color-primary)]">${formatPrice(item.price * item.quantity)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {!isPayment && (
+                              <div className={`mt-3 rounded-2xl p-3 sm:p-4 flex flex-col border ${
+                                isFalta ? 'bg-red-50/50 border-red-100' : 'bg-emerald-50/50 border-emerald-100'
+                              }`}>
+                                <div className="space-y-1.5 text-xs font-medium">
+                                    {booksTotal > 0 && (
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Valor libros:</span> 
+                                        <span className="text-gray-800 font-bold">${formatPrice(booksTotal)}</span>
+                                      </div>
+                                    )}
+                                    {articlesTotal > 0 && (
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-gray-600">Valor artículos:</span> 
+                                        <span className="text-gray-800 font-bold">${formatPrice(articlesTotal)}</span>
+                                      </div>
+                                    )}
+                                    {(entry.discount || 0) > 0 && (
+                                      <div className="flex justify-between items-center bg-emerald-100/50 px-2 py-1 -mx-2 rounded-md">
+                                        <span className="text-emerald-700 font-bold">Descuento ({entry.discount}%):</span> 
+                                        <span className="text-emerald-600 font-black">-${formatPrice(discountAmount)}</span>
+                                      </div>
+                                    )}
+                                    {entry.debtBefore > 0 && (
+                                      <div className="flex justify-between items-center pt-1">
+                                        <span className="text-gray-600">Deuda anterior:</span> 
+                                        <span className="text-red-500 font-bold">${formatPrice(entry.debtBefore)}</span>
+                                      </div>
+                                    )}
+                                    {entry.creditBefore > 0 && (
+                                      <div className="flex justify-between items-center pt-1">
+                                        <span className="text-gray-600">A favor anterior:</span> 
+                                        <span className="text-emerald-600 font-bold">${formatPrice(entry.creditBefore)}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex justify-between items-center pt-2 border-t border-gray-200/60 mt-2">
+                                      <span className="text-gray-600">Total Venta:</span> 
+                                      <span className="text-gray-900 font-black">${formatPrice(netTotalToPay)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-gray-600">Lo que pagó:</span> 
+                                      <span className="text-gray-900 font-black">${formatPrice(entry.amountPaid)}</span>
+                                    </div>
+                                </div>
+
+                                <div className={`mt-2 pt-2 border-t flex justify-between items-center ${isFalta ? 'border-red-200' : 'border-emerald-200'}`}>
+                                  {balanceDifference === 0 ? (
+                                    <span className="font-black uppercase tracking-widest text-[10px] text-emerald-800 w-full text-center">
+                                      Quedó al día
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <span className={`font-black uppercase tracking-widest text-[10px] ${isFalta ? 'text-red-800' : 'text-emerald-800'}`}>
+                                        {isFalta ? 'Deuda generada:' : 'Saldo a favor generado:'}
+                                      </span>
+                                      <span className={`text-base sm:text-lg font-black ${isFalta ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        ${formatPrice(balanceDifference)}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          {entry.items?.length > 0 && (
-                            <div className="pt-3 border-t border-gray-100">
-                              <ul className="space-y-2">
-                                {entry.items.map((item: any, i: number) => (
-                                  <li key={i} className="flex justify-between items-center text-xs">
-                                    <div className="flex items-center gap-3"><div className="w-8 h-12 rounded-md bg-gray-50 border overflow-hidden shrink-0 flex items-center justify-center">{item.cover_url && !item.bookId?.startsWith('custom_') ? <img src={item.cover_url} alt="" className="w-full h-full object-cover" /> : <span className="text-[8px] font-bold text-gray-300">Art.</span>}</div><span className="text-gray-500 font-medium">{item.title} (x{item.quantity})</span></div>
-                                    <span className="font-bold text-red-500">${formatPrice(item.price * item.quantity)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {entry.type !== 'payment' && entry.amountPaid > 0 && (<div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-xs font-bold"><span className="text-gray-500">Pagado al momento</span><span className="text-emerald-600">${formatPrice(entry.amountPaid)}</span></div>)}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, Loader2, Check, Trash2, AlertTriangle, PiggyBank } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClientRecord, SaleRecord, BookItem } from '../types';
+import { ClientRecord, BookItem } from '../types';
 
 interface DebtorDetailModalProps {
   client: ClientRecord;
@@ -19,7 +19,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   
-  // NUEVO: Estado para el popup de sobrepago
   const [showOverpayConfirm, setShowOverpayConfirm] = useState(false);
 
   useEffect(() => {
@@ -127,7 +126,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
     }
   };
 
-  // NUEVO: Verificación antes de ejecutar el pago
   const handlePayment = async () => {
     if (amountToPay <= 0) return;
 
@@ -139,7 +137,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
     executePayment();
   };
 
-  // NUEVO: Ejecución real del pago separada
   const executePayment = async () => {
     setIsPaying(true);
     try {
@@ -243,13 +240,24 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                                 <div>
                                   <p className="font-bold text-sm leading-tight text-[var(--color-primary)]">Compra del {getDebtDate(entry)}</p>
                                   {entry.total !== undefined && (
-                                    <div className="mt-1 flex gap-3 text-[10px] font-medium text-gray-500">
+                                    <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] font-medium text-gray-500">
                                       <p>Total: ${formatPrice(entry.total)}</p>
                                       <p>Pagado: ${formatPrice(entry.amountPaid)}</p>
+                                      {entry.discount > 0 && <p className="text-emerald-600 font-bold">Desc: {entry.discount}%</p>}
                                     </div>
                                   )}
+                                  
+                                  {/* NUEVO: Detalles de Método de pago y Notas */}
+                                  {(entry.paymentMethod && entry.paymentMethod.length > 0) && (
+                                    <div className="flex gap-2 mt-2">
+                                      {entry.paymentMethod.includes('efectivo') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase">Efectivo</span>}
+                                      {entry.paymentMethod.includes('transferencia') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 uppercase">Transf.</span>}
+                                    </div>
+                                  )}
+                                  {entry.notes && <p className="text-[10px] text-gray-400 italic mt-1.5 max-w-sm">"{entry.notes}"</p>}
+
                                 </div>
-                                <p className={`font-black text-sm sm:text-base ${isFavor ? 'text-emerald-500' : 'text-red-500'}`}>
+                                <p className={`font-black text-sm sm:text-base mt-2 sm:mt-0 ${isFavor ? 'text-emerald-500' : 'text-red-500'}`}>
                                   {isFavor ? 'Abono: ' : 'Deuda: '}${formatPrice(Math.abs(debtVal))}
                                 </p>
                               </div>
@@ -294,7 +302,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                           onChange={(e) => {
                             const val = e.target.value.replace(/\D/g, '');
                             setAmountToPay(Number(val)); 
-                            // SE ELIMINÓ EL LÍMITE: if (num > client.totalDebt)
                           }}
                         />
                       </div>
@@ -302,11 +309,10 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                         onClick={() => setAmountToPay(client.totalDebt)}
                         className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                       >
-                        Pagar toda la deuda
+                        Completar Monto
                       </button>
                     </div>
                     <div className="flex justify-center sm:justify-end items-center h-full">
-                      {/* MODIFICADO: Caja dinámica igual a SalesModal */}
                       <div className={`w-full sm:w-auto rounded-2xl p-4 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
                         amountToPay >= client.totalDebt
                           ? 'bg-emerald-500 shadow-emerald-500/20' 
@@ -359,7 +365,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
         </div>
       </AnimatePresence>
 
-      {/* Modal Confirmación Eliminar Pago */}
       <AnimatePresence>
         {paymentToDelete && (
           <div key="delete-payment-modal" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -401,7 +406,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
         )}
       </AnimatePresence>
       
-      {/* NUEVO: Popup de Confirmación PiggyBank para Saldos a Favor en Pagos */}
       <AnimatePresence>
         {showOverpayConfirm && (
           <div key="overpay-confirm-modal" className="fixed inset-0 z-[120] flex items-center justify-center p-4">

@@ -9,7 +9,7 @@ router.post("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
+    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const bookItems = items.filter((item: any) => !item.bookId.startsWith('custom_'));
@@ -37,19 +37,16 @@ router.post("/", async (req, res) => {
         transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - bookItems[i].quantity) });
       }
 
-      // --- LÓGICA DE CUENTA CORRIENTE ---
       const currentDebt = clientDoc?.exists ? (clientDoc.data().totalDebt || 0) : 0;
       const currentCredit = clientDoc?.exists ? (clientDoc.data().creditBalance || 0) : 0;
       
       let effectiveAmountForThisSale = Number(amountPaid);
 
-      // 1. Si el cliente tiene crédito previo, lo usamos para "pagar" esta venta primero
       if (currentCredit > 0) {
         const creditToUse = Math.min(currentCredit, Number(total));
         effectiveAmountForThisSale += creditToUse;
       }
 
-      // 2. Cálculo de balance final del cliente (Invariante contable) 
       const netChange = Number(total) - Number(amountPaid);
       const finalNetBalance = currentDebt - currentCredit + netChange;
 
@@ -75,9 +72,12 @@ router.post("/", async (req, res) => {
         clientId: finalClientId,
         clientName,
         total: Number(total),
-        amountPaid: effectiveAmountForThisSale, // Guardamos lo que realmente se aplicó a esta venta
+        amountPaid: effectiveAmountForThisSale,
         sellerId,
         sellerName,
+        paymentMethod: paymentMethod || [],
+        notes: notes || '',
+        discount: Number(discount) || 0,
         timestamp: admin.firestore.FieldValue.serverTimestamp()
       });
     });
@@ -89,7 +89,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// El resto de las rutas (GET, PUT, DELETE) se mantienen igual para no romper la estructura solicitada
 router.get("/", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -108,7 +107,7 @@ router.put("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName } = req.body;
+    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
@@ -205,9 +204,20 @@ router.put("/:id", async (req, res) => {
         }
       }
       
-      transaction.update(saleRef, { items, clientId: finalClientId, clientName, total: Number(total), amountPaid: Number(amountPaid), sellerId, sellerName });
+      transaction.update(saleRef, { 
+        items, 
+        clientId: finalClientId, 
+        clientName, 
+        total: Number(total), 
+        amountPaid: Number(amountPaid), 
+        sellerId, 
+        sellerName,
+        paymentMethod: paymentMethod || [],
+        notes: notes || '',
+        discount: Number(discount) || 0
+      });
     });
-    // --- NUEVO: LOG DE VENTA EDITADA ---
+
     const userCookie = req.cookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
@@ -229,7 +239,7 @@ router.delete("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
-    let saleDataLog: any = null; // <-- Variable para el log
+    let saleDataLog: any = null;
 
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
@@ -237,7 +247,7 @@ router.delete("/:id", async (req, res) => {
       if (!saleDoc.exists) throw new Error("Venta no encontrada");
       
       const saleData = saleDoc.data()!;
-      saleDataLog = saleData; // <-- Guardamos la info antes de borrarla
+      saleDataLog = saleData;
       
       const bookItems = (saleData.items || []).filter((item: any) => !item.bookId.startsWith('custom_'));
       
@@ -277,7 +287,6 @@ router.delete("/:id", async (req, res) => {
       transaction.delete(saleRef);
     });
 
-    // --- NUEVO: GUARDAR EN EL LOG DE ACTIVIDAD ---
     const userCookie = req.cookies?.user;
     if (userCookie && saleDataLog) {
         try {

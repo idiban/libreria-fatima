@@ -10,7 +10,10 @@ import {
   DollarSign, 
   AlertCircle,
   Trash2,
-  PiggyBank 
+  PiggyBank,
+  Wallet,
+  Landmark,
+  Percent
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem } from '../types';
@@ -49,6 +52,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
   const [customItemName, setCustomItemName] = useState('');
   const [customItemPrice, setCustomItemPrice] = useState('');
 
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [paymentMethodError, setPaymentMethodError] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [discount, setDiscount] = useState<number | ''>('');
+
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
@@ -61,15 +69,35 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
-  const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const togglePaymentMethod = (method: string) => {
+    setPaymentMethods(prev => {
+      if (prev.includes(method)) return prev.filter(m => m !== method);
+      return [...prev, method];
+    });
+    setPaymentMethodError(false);
+  };
+
+  const booksTotal = items.filter(i => !i.bookId.startsWith('custom_')).reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const articlesTotal = items.filter(i => i.bookId.startsWith('custom_')).reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const rawTotalItems = booksTotal + articlesTotal;
+  
+  const discountPercentage = Number(discount) || 0;
+  // Redondeo para evitar decimales infinitos como 5.040.000.001
+  const discountAmount = Math.round(rawTotalItems * (discountPercentage / 100));
+  
+  const total = rawTotalItems - discountAmount;
   const netTotalToPay = total + (selectedClientDebt || 0);
   const cashNeeded = Math.max(0, netTotalToPay - selectedClientCredit);
+
+  const isFalta = amountPaid < cashNeeded;
+  const balanceDifference = Math.abs(amountPaid - cashNeeded);
 
   const latestSearch = useRef<string>('');
 
   useEffect(() => {
     if (!isOpen) {
       setClientNameError(false);
+      setPaymentMethodError(false);
       setShowOverpayConfirm(false);
       setShowDebtConfirm(false);
     } else {
@@ -85,6 +113,10 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       setSelectedClientCredit(0);
       setIsClientSelected(false);
       setBookSearchTerm('');
+      setPaymentMethods([]);
+      setPaymentMethodError(false);
+      setNotes('');
+      setDiscount('');
     }
   }, [isOpen, initialBook]);
 
@@ -207,6 +239,11 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       return;
     }
 
+    if (amountPaid > 0 && paymentMethods.length === 0) {
+      setPaymentMethodError(true);
+      return;
+    }
+
     if (amountPaid > cashNeeded && !showOverpayConfirm) {
       setShowOverpayConfirm(true);
       return;
@@ -233,7 +270,10 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
           amountPaid,
           total, 
           sellerId: currentUser.id,
-          sellerName: currentUser.username
+          sellerName: currentUser.username,
+          paymentMethod: paymentMethods,
+          notes,
+          discount: discountPercentage
         })
       });
 
@@ -268,20 +308,12 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]"
+              className="relative w-full max-w-3xl bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]"
             >
-              <div className="p-5 sm:p-8 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
+              <div className="p-5 sm:p-6 border-b border-[var(--color-warm-surface)] flex justify-between items-center bg-[var(--color-warm-bg)] shrink-0">
                 <div>
                   <h2 className="text-2xl sm:text-3xl font-black text-[var(--color-primary)] leading-tight flex flex-wrap items-center gap-2">
                     <span>{clientName || 'Nueva Venta'}</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedClientDebt !== null && selectedClientDebt > 0 && (
-                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full border border-red-100">Debe ${formatPrice(selectedClientDebt)}</span>
-                      )}
-                      {selectedClientCredit > 0 && (
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">Favor: ${formatPrice(selectedClientCredit)}</span>
-                      )}
-                    </div>
                   </h2>
                   <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Carrito de Compras</p>
                 </div>
@@ -290,14 +322,14 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-6 sm:space-y-8">
-                <div className="space-y-3 sm:space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+                <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Comprador</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
                     <input
                       type="text"
-                      className={`w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 bg-gray-100 border-2 rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base ${clientNameError ? 'border-red-500' : 'border-transparent focus:border-[var(--color-primary)]'}`}
+                      className={`w-full pl-10 sm:pl-12 pr-4 py-3 bg-gray-100 border-2 rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base ${clientNameError ? 'border-red-500' : 'border-transparent focus:border-[var(--color-primary)]'}`}
                       placeholder="Nombre del comprador..."
                       value={clientName}
                       onChange={(e) => {
@@ -340,17 +372,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   </div>
                 </div>
 
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Productos</label>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {items.length === 0 && (
                       <p className="text-sm font-bold text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-4 text-center">
                         El carrito está vacío. Agrega libros o artículos.
                       </p>
                     )}
                     {items.map((item) => (
-                      <div key={item.bookId} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white border border-[var(--color-warm-surface)] rounded-xl sm:rounded-2xl shadow-sm relative">
-                        <div className="flex items-center gap-3 sm:gap-4 flex-1">
+                      <div key={item.bookId} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-3 bg-white border border-[var(--color-warm-surface)] rounded-xl sm:rounded-2xl shadow-sm relative">
+                        <div className="flex items-center gap-3 flex-1">
                           <div className="w-10 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0 border border-gray-100">
                             {item.cover_url ? (
                               <img src={item.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -361,7 +393,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                             )}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-sm leading-tight pr-8 sm:pr-0">{item.title}</h4>
+                            <h4 className="font-bold text-sm leading-tight pr-6 sm:pr-0">{item.title}</h4>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                               <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
                               {!item.bookId.startsWith('custom_') && (
@@ -380,17 +412,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                         
                         <div className="flex items-center justify-between sm:justify-end gap-3 mt-1 sm:mt-0">
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-2 sm:gap-3 bg-[var(--color-warm-bg)] rounded-lg sm:rounded-xl p-1">
-                              <button onClick={() => updateQuantity(item.bookId, -1)} className="p-1 sm:p-1.5 hover:bg-white rounded-md sm:rounded-lg text-gray-400 hover:text-[var(--color-primary)] transition-all">
-                                <Minus className="w-4 h-4" />
+                            <div className="flex items-center gap-1 bg-[var(--color-warm-bg)] rounded-lg p-1">
+                              <button onClick={() => updateQuantity(item.bookId, -1)} className="p-1 hover:bg-white rounded-md text-gray-400 hover:text-[var(--color-primary)] transition-all">
+                                <Minus className="w-3.5 h-3.5" />
                               </button>
-                              <span className="font-black text-xs sm:text-sm w-5 sm:w-6 text-center">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.bookId, 1)} className="p-1 sm:p-1.5 hover:bg-white rounded-md sm:rounded-lg text-gray-400 hover:text-[var(--color-primary)] transition-all">
-                                <Plus className="w-4 h-4" />
+                              <span className="font-black text-xs sm:text-sm w-5 text-center">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.bookId, 1)} className="p-1 hover:bg-white rounded-md text-gray-400 hover:text-[var(--color-primary)] transition-all">
+                                <Plus className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeItem(item.bookId); }} className="p-1.5 sm:p-2 text-gray-300 hover:text-red-500 transition-colors">
-                              <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeItem(item.bookId); }} className="p-1.5 text-gray-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                           <p className="sm:hidden font-black text-[var(--color-primary)] text-sm">
@@ -401,17 +433,17 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                     ))}
                   </div>
 
-                  <div className="relative mt-3 sm:mt-4">
-                    <Search className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <div className="relative mt-4 bg-[var(--color-primary)]/5 p-1 rounded-2xl border-2 border-[var(--color-primary)]/20 focus-within:border-[var(--color-primary)] focus-within:bg-white transition-all shadow-sm">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-primary)] opacity-60" />
                     <input
                       type="text"
-                      className="w-full pl-10 sm:pl-12 pr-10 py-2.5 sm:py-3 bg-white border border-dashed border-gray-300 rounded-xl sm:rounded-2xl text-xs sm:text-sm outline-none focus:border-[var(--color-primary)] transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 bg-transparent text-sm outline-none font-bold placeholder-[var(--color-primary)]/40 text-[var(--color-primary)]"
                       placeholder="Buscar por título, autor o categoría..."
                       value={bookSearchTerm}
                       onChange={(e) => handleBookSearch(e.target.value)}
                     />
                     {isSearching ? (
-                      <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 p-1">
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
                         <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
                       </div>
                     ) : bookSearchTerm ? (
@@ -420,18 +452,18 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                           setBookSearchTerm('');
                           setBookSuggestions([]);
                         }}
-                        className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--color-primary)]/50 hover:text-[var(--color-primary)]"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     ) : null}
                     {bookSearchTerm.length > 2 && bookSuggestions.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl sm:rounded-2xl shadow-xl border border-gray-100 py-2 z-50 max-h-48 sm:max-h-60 overflow-y-auto">
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 max-h-48 overflow-y-auto">
                         {bookSuggestions.map((b) => (
                           <button
                             key={b.id}
                             onClick={() => addItem(b)}
-                            className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left hover:bg-[var(--color-warm-bg)] transition-colors flex items-center gap-3"
+                            className="w-full px-4 py-2 text-left hover:bg-[var(--color-warm-bg)] transition-colors flex items-center gap-3"
                           >
                             <div className="w-8 h-10 rounded bg-gray-50 overflow-hidden shrink-0 border border-gray-100">
                               {b.cover_url ? (
@@ -443,7 +475,7 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                               )}
                             </div>
                             <div className="flex-1">
-                              <p className="font-bold text-xs sm:text-sm leading-tight">{b.title}</p>
+                              <p className="font-bold text-xs sm:text-sm leading-tight text-gray-800">{b.title}</p>
                               <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium">{b.author}</p>
                             </div>
                             <span className="font-black text-[var(--color-primary)] text-xs shrink-0">${formatPrice(b.price)}</span>
@@ -453,28 +485,28 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                     )}
                   </div>
 
-                  <div className="mt-3 sm:mt-4">
+                  <div className="mt-2">
                     {!showCustomItemForm ? (
                       <button
                         onClick={() => setShowCustomItemForm(true)}
-                        className="flex items-center gap-1 text-[var(--color-primary)] font-bold text-xs uppercase tracking-widest hover:opacity-70 transition-opacity"
+                        className="flex items-center gap-1 text-[var(--color-primary)] font-bold text-xs uppercase tracking-widest hover:opacity-70 transition-opacity ml-1"
                       >
                         <Plus className="w-4 h-4" /> Agregar artículo
                       </button>
                     ) : (
-                      <div className="p-3 sm:p-4 bg-[var(--color-warm-bg)] border border-dashed border-[var(--color-primary)] rounded-xl sm:rounded-2xl flex flex-col sm:flex-row gap-2 sm:gap-3 items-start sm:items-center">
+                      <div className="p-3 bg-[var(--color-warm-bg)] border border-dashed border-[var(--color-primary)] rounded-xl flex flex-col sm:flex-row gap-2 items-start sm:items-center mt-2">
                         <div className="flex-1 w-full">
                           <input
                             type="text"
                             placeholder="Nombre del artículo..."
                             value={customItemName}
                             onChange={(e) => setCustomItemName(capitalizeWords(e.target.value))}
-                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-white border border-gray-200 rounded-lg sm:rounded-xl outline-none focus:border-[var(--color-primary)] text-xs sm:text-sm font-bold transition-all"
+                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] text-xs font-bold transition-all"
                           />
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto">
-                          <div className="relative w-full sm:w-32">
-                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-400" />
+                          <div className="relative w-full sm:w-28">
+                            <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                             <input
                               type="text"
                               placeholder="Precio"
@@ -483,15 +515,15 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                                 const val = e.target.value.replace(/\D/g, '');
                                 setCustomItemPrice(val);
                               }}
-                              className="w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white border border-gray-200 rounded-lg sm:rounded-xl outline-none focus:border-[var(--color-primary)] text-xs sm:text-sm font-bold transition-all"
+                              className="w-full pl-7 pr-2 py-2 bg-white border border-gray-200 rounded-lg outline-none focus:border-[var(--color-primary)] text-xs font-bold transition-all"
                             />
                           </div>
                           <button 
                             onClick={handleAddCustomItem}
                             disabled={!customItemName.trim() || !customItemPrice}
-                            className="p-2.5 sm:p-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg sm:rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                            className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50 shrink-0"
                           >
-                            <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <Check className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => {
@@ -499,9 +531,9 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                               setCustomItemName('');
                               setCustomItemPrice('');
                             }}
-                            className="p-2.5 sm:p-3 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg sm:rounded-xl transition-colors shrink-0"
+                            className="p-2 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg transition-colors shrink-0"
                           >
-                            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <X className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -509,68 +541,166 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-5 sm:pt-6 border-t border-[var(--color-warm-surface)]">
-                  <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Monto Pagado</label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        className="w-full pl-10 sm:pl-12 pr-4 py-3 sm:py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl"
-                        value={amountPaid ? formatPrice(amountPaid) : ''}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, '');
-                          setAmountPaid(Number(val));
-                        }}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 pt-5 border-t border-[var(--color-warm-surface)]">
+                  <div className="space-y-4">
+                    <div className="flex gap-3">
+                      <div className="space-y-1.5 flex-[2]">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Lo que el comprador pagó</label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            className="w-full pl-9 pr-3 py-2.5 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-xl outline-none transition-all font-black text-sm"
+                            value={amountPaid ? formatPrice(amountPaid) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setAmountPaid(Number(val));
+                              if (paymentMethodError && Number(val) > 0) setPaymentMethodError(false);
+                            }}
+                          />
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setAmountPaid(cashNeeded);
+                            if (paymentMethodError && cashNeeded > 0) setPaymentMethodError(false);
+                          }}
+                          className="mt-1.5 w-full py-2 bg-[var(--color-primary)] text-white rounded-lg font-black text-[10px] uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-95 transition-all"
+                        >
+                          Completar Monto
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 flex-1">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Desc. %</label>
+                        <div className="relative">
+                          <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            className="w-full pl-3 pr-8 py-2.5 bg-emerald-50 border-2 border-emerald-100 focus:border-emerald-400 rounded-xl outline-none transition-all font-black text-sm text-emerald-700"
+                            value={discount}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              if (val >= 0 && val <= 100) setDiscount(val || '');
+                            }}
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Método de Pago</label>
+                      <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl border-2 transition-all ${paymentMethodError ? 'border-red-400 bg-red-50' : 'border-transparent'}`}>
+                        <button 
+                          onClick={() => togglePaymentMethod('efectivo')}
+                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('efectivo') ? 'bg-[var(--color-primary)] text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                        >
+                          <Wallet className="w-4 h-4" /> Efectivo
+                        </button>
+                        <button 
+                          onClick={() => togglePaymentMethod('transferencia')}
+                          className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('transferencia') ? 'bg-[var(--color-primary)] text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                        >
+                          <Landmark className="w-4 h-4" /> Transf.
+                        </button>
+                      </div>
+                      {paymentMethodError && <p className="text-red-500 text-[9px] font-bold text-center mt-1">Selecciona el método de pago</p>}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Notas de la Venta</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Escribe alguna nota o detalle"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[var(--color-primary)] transition-all text-xs font-medium resize-none"
                       />
                     </div>
-                    <button 
-                      onClick={() => setAmountPaid(cashNeeded)}
-                      className="mt-2 w-full py-3 sm:py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
-                    >
-                      Pagó todo
-                    </button>
                   </div>
-                  <div className="flex justify-center items-center">
-                    <div className={`w-full sm:w-auto rounded-xl sm:rounded-2xl p-4 sm:p-3 sm:px-5 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
-                      (amountPaid + selectedClientCredit) >= netTotalToPay
-                        ? 'bg-emerald-500 shadow-emerald-500/20' 
-                        : 'bg-red-500 shadow-red-500/20'
+
+                  <div className="flex flex-col justify-center">
+                    <div className={`w-full rounded-[1.5rem] p-4 sm:p-5 flex flex-col shadow-lg transition-all duration-300 border-2 ${
+                      isFalta ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'
                     }`}>
-                      <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest opacity-60">Total Venta</p>
-                      <p className="text-xl sm:text-2xl font-black">${formatPrice(netTotalToPay)}</p>
-                      {netTotalToPay - (amountPaid + selectedClientCredit) > 0 && (
-                        <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg">
-                          Falta: ${formatPrice(netTotalToPay - (amountPaid + selectedClientCredit))}
-                        </p>
-                      )}
-                      {amountPaid > cashNeeded && (
-                        <p className="text-[10px] sm:text-[9px] font-bold mt-1 bg-white/20 px-3 py-1 sm:px-2 sm:py-0.5 rounded-lg text-emerald-100">
-                          A favor: ${formatPrice(amountPaid - cashNeeded)}
-                        </p>
-                      )}
+                      <h4 className={`text-[10px] sm:text-xs font-black uppercase tracking-widest mb-3 ${isFalta ? 'text-red-800' : 'text-emerald-800'}`}>Resumen</h4>
+                      
+                      <div className="space-y-2 text-xs sm:text-sm font-medium">
+                        {booksTotal > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Valor libros:</span> 
+                            <span className="text-red-500 font-bold">${formatPrice(booksTotal)}</span>
+                          </div>
+                        )}
+                        
+                        {articlesTotal > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-gray-600">Valor artículos:</span> 
+                            <span className="text-red-500 font-bold">${formatPrice(articlesTotal)}</span>
+                          </div>
+                        )}
+                        
+                        {discountPercentage > 0 && (
+                          <div className="flex justify-between items-center bg-emerald-100/50 px-2 py-1 -mx-2 rounded-md">
+                            <span className="text-emerald-700 font-bold">Descuento ({discountPercentage}%):</span> 
+                            <span className="text-emerald-600 font-black">${formatPrice(discountAmount)}</span>
+                          </div>
+                        )}
+                        
+                        {selectedClientDebt !== null && selectedClientDebt > 0 && (
+                          <div className="flex justify-between items-center pt-1">
+                            <span className="text-gray-600">Deuda:</span> 
+                            <span className="text-red-500 font-bold">${formatPrice(selectedClientDebt)}</span>
+                          </div>
+                        )}
+                        
+                        {selectedClientCredit > 0 && (
+                          <div className="flex justify-between items-center pt-1">
+                            <span className="text-gray-600">A favor:</span> 
+                            <span className="text-emerald-600 font-bold">${formatPrice(selectedClientCredit)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className={`mt-3 pt-3 border-t-2 flex justify-between items-center ${isFalta ? 'border-red-200' : 'border-emerald-200'}`}>
+                        {balanceDifference === 0 ? (
+                          <span className="font-black uppercase tracking-widest text-[10px] sm:text-xs text-emerald-800 w-full text-center">
+                            Está todo al día
+                          </span>
+                        ) : (
+                          <>
+                            <span className={`font-black uppercase tracking-widest text-[10px] sm:text-xs ${isFalta ? 'text-red-800' : 'text-emerald-800'}`}>
+                              {isFalta ? 'Falta:' : 'Vuelto:'}
+                            </span>
+                            <span className={`text-xl sm:text-2xl font-black ${isFalta ? 'text-red-600' : 'text-emerald-600'}`}>
+                              ${formatPrice(balanceDifference)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 sm:p-8 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-3 sm:gap-4 shrink-0">
+              <div className="p-4 sm:p-5 bg-[var(--color-warm-bg)] border-t border-[var(--color-warm-surface)] flex gap-3 shrink-0">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 transition-all flex items-center justify-center gap-2 shadow-sm text-sm sm:text-base"
+                  className="flex-1 py-3 sm:py-3.5 px-4 rounded-xl font-black text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 transition-all shadow-sm text-sm"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={handleFinalize}
                   disabled={isLoading || amountPaid < 0 || !clientName.trim() || items.length === 0} 
-                  className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-4 px-4 sm:px-6 rounded-xl sm:rounded-2xl font-black text-sm sm:text-base shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
+                  className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-3.5 px-4 rounded-xl font-black text-sm shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
-                    <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <>
-                      <Check className="w-5 h-5 sm:w-6 sm:h-6" />
+                      <Check className="w-5 h-5" />
                       Listo
                     </>
                   )}
@@ -584,14 +714,16 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       <AnimatePresence>
         {showOverpayConfirm && (
           <div key="overpay-confirm-modal" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowOverpayConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-10 text-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isLoading && setShowOverpayConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-8 sm:p-10 text-center">
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6"><PiggyBank className="w-10 h-10 text-emerald-500" /></div>
-              <h3 className="text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
-              <p className="text-gray-500 font-medium mb-8 leading-relaxed">¿Quieres dejar <span className="text-emerald-600 font-black">${formatPrice(amountPaid - cashNeeded)}</span> como saldo a favor para este cliente?</p>
+              <h3 className="text-xl sm:text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> quedará con <span className="text-emerald-600 font-black">${formatPrice(balanceDifference)}</span> de saldo a favor, ¿está de acuerdo?</p>
               <div className="flex flex-col gap-3">
-                <button onClick={executeFinalize} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Sí, guardar saldo</button>
-                <button onClick={() => setShowOverpayConfirm(false)} className="w-full py-4 bg-gray-300 text-gray-700 rounded-2xl font-black active:scale-95 transition-all">Corregir monto</button>
+                <button onClick={executeFinalize} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 text-sm sm:text-base">
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sí, guardar saldo'}
+                </button>
+                <button onClick={() => setShowOverpayConfirm(false)} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-gray-200 text-gray-700 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 text-sm sm:text-base">No, corregir monto</button>
               </div>
             </motion.div>
           </div>
@@ -601,14 +733,16 @@ export default function SaleModal({ isOpen, onClose, initialBook, currentUser, o
       <AnimatePresence>
         {showDebtConfirm && (
           <div key="debt-confirm-modal" className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDebtConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-6 sm:p-10 text-center">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isLoading && setShowDebtConfirm(false)} className="absolute inset-0 bg-[#2D1A1A]/60 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-8 sm:p-10 text-center">
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6"><AlertCircle className="w-10 h-10 text-red-500" /></div>
               <h3 className="text-xl sm:text-2xl font-black text-[#2D1A1A] mb-3">¿Generar Deuda?</h3>
-              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> está pagando menos de lo que cuesta, ¿quiere dejarlo como deuda?</p>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> quedará con una deuda de <span className="text-red-500 font-black">${formatPrice(balanceDifference)}</span>, ¿está de acuerdo?</p>
               <div className="flex flex-col gap-3">
-                <button onClick={executeFinalize} className="w-full py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-500/20 active:scale-95 transition-all text-sm sm:text-base">Sí, registrarlo como deuda</button>
-                <button onClick={() => setShowDebtConfirm(false)} className="w-full py-4 bg-gray-300 text-gray-700 rounded-2xl font-black active:scale-95 transition-all text-sm sm:text-base">No, corregir monto</button>
+                <button onClick={executeFinalize} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-red-500 text-white rounded-2xl font-black shadow-lg shadow-red-500/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 text-sm sm:text-base">
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sí, registrarlo como deuda'}
+                </button>
+                <button onClick={() => setShowDebtConfirm(false)} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-gray-200 text-gray-700 rounded-2xl font-black active:scale-95 transition-all disabled:opacity-50 text-sm sm:text-base">No, corregir monto</button>
               </div>
             </motion.div>
           </div>
