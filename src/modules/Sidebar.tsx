@@ -141,7 +141,7 @@ export default function Sidebar({
           className="hidden md:flex w-full items-center gap-3 px-4 py-3 text-gray-400 hover:text-[#B23B23] transition-all"
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
-          {!isCollapsed && <span className="text-sm font-bold">Colapsar Menú</span>}
+          {!isCollapsed && <span className="text-sm font-bold">Minimizar Menú</span>}
         </button>
 
         <button

@@ -64,7 +64,7 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
       const res = await fetch(endpoint, { method: 'DELETE' });
       
       if (res.ok) {
-        const deletedItem = history.find(h => h.id === itemToDelete.id);
+        const deletedItem = historyWithBalances.find(h => h.id === itemToDelete.id);
         
         if (deletedItem) {
           let netBalance = currentDebt - currentCredit;
@@ -158,16 +158,19 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
 
             <div className="flex-1 overflow-y-auto p-6 sm:p-8">
               <div className="space-y-8">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className={`p-4 rounded-2xl border ${currentCredit > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentCredit > 0 ? 'text-emerald-600' : 'text-gray-600'}`}>Saldo a Favor</p>
-                    <p className={`text-xl font-black ${currentCredit > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>${formatPrice(currentCredit)}</p>
+                
+                {(currentCredit > 0 || currentDebt > 0) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className={`p-4 rounded-2xl border ${currentCredit > 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-gray-50 border-gray-100'}`}>
+                      <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentCredit > 0 ? 'text-emerald-600' : 'text-gray-600'}`}>Saldo a Favor</p>
+                      <p className={`text-xl font-black ${currentCredit > 0 ? 'text-emerald-700' : 'text-gray-700'}`}>${formatPrice(currentCredit)}</p>
+                    </div>
+                    <div className={`p-4 rounded-2xl border ${currentDebt > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+                      <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentDebt > 0 ? 'text-red-600' : 'text-gray-600'}`}>Deuda Actual</p>
+                      <p className={`text-xl font-black ${currentDebt > 0 ? 'text-red-700' : 'text-gray-700'}`}>${formatPrice(currentDebt)}</p>
+                    </div>
                   </div>
-                  <div className={`p-4 rounded-2xl border ${currentDebt > 0 ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-widest opacity-60 ${currentDebt > 0 ? 'text-red-600' : 'text-gray-600'}`}>Deuda Actual</p>
-                    <p className={`text-xl font-black ${currentDebt > 0 ? 'text-red-700' : 'text-gray-700'}`}>${formatPrice(currentDebt)}</p>
-                  </div>
-                </div>
+                )}
 
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -179,7 +182,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                      {filteredHistory.map((entry, idx) => {
                         const isPayment = entry.type === 'payment';
                         
-                        // Cálculos exactos para recrear el cuadro resumen del carrito
                         const booksTotal = !isPayment ? (entry.items || []).filter((i:any) => !i.bookId.startsWith('custom_')).reduce((acc:number, item:any) => acc + (item.price * item.quantity), 0) : 0;
                         const articlesTotal = !isPayment ? (entry.items || []).filter((i:any) => i.bookId.startsWith('custom_')).reduce((acc:number, item:any) => acc + (item.price * item.quantity), 0) : 0;
                         const rawTotalItems = booksTotal + articlesTotal;
@@ -187,9 +189,12 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                         
                         const netTotalToPay = (entry.total || 0) + (entry.debtBefore || 0);
                         const cashNeeded = Math.max(0, netTotalToPay - (entry.creditBefore || 0));
-                        const isFalta = (entry.amountPaid || 0) < cashNeeded;
-                        const balanceDifference = Math.abs((entry.amountPaid || 0) - cashNeeded);
-                        const isFavor = (entry.amountPaid || 0) > cashNeeded;
+                        
+                        const amountPaidToUse = entry.amountPaid || 0;
+
+                        const isFalta = amountPaidToUse < cashNeeded;
+                        const balanceDifference = Math.abs(amountPaidToUse - cashNeeded);
+                        const isFavor = amountPaidToUse > cashNeeded;
                         const debtVal = balanceDifference;
 
                         return (
@@ -223,9 +228,11 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                   {isPayment ? (
                                     <p className="font-black text-lg text-emerald-600">Pagó: ${formatPrice(entry.amount)}</p>
                                   ) : (
-                                    <p className={`font-black text-sm sm:text-base ${isFavor ? 'text-emerald-500' : 'text-red-500'}`}>
-                                      {isFavor ? 'Abono: ' : 'Deuda: '}${formatPrice(Math.abs(debtVal))}
-                                    </p>
+                                    debtVal > 0 && (
+                                      <p className={`font-black text-sm sm:text-base ${isFavor ? 'text-emerald-500' : 'text-red-500'}`}>
+                                        {isFavor ? 'Abono: ' : 'Deuda: '}${formatPrice(Math.abs(debtVal))}
+                                      </p>
+                                    )
                                   )}
                                 </div>
                                 <button
@@ -242,14 +249,14 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                               <div className="pt-2 border-t border-gray-100 mb-3">
                                 <ul className="space-y-2 mt-2">
                                   {entry.items.map((item: any, i: number) => (
-                                    <li key={i} className="flex justify-between items-center text-xs">
+                                    <li key={i} className={`flex justify-between items-center text-xs p-2 rounded-xl ${i % 2 === 0 ? 'bg-white' : 'bg-gray-100'}`}>
                                       <div className="flex items-center gap-3">
                                         <div className="w-8 h-12 rounded-md bg-gray-50 border overflow-hidden shrink-0 flex items-center justify-center">
                                           {item.cover_url && !item.bookId?.startsWith('custom_') ? <img src={item.cover_url} alt="" className="w-full h-full object-cover" /> : <span className="text-[8px] font-bold text-gray-300">Art.</span>}
                                         </div>
                                         <span className="text-gray-500 font-medium">{item.title} <span className="text-gray-400">(x{item.quantity})</span></span>
                                       </div>
-                                      <span className="font-bold text-[var(--color-primary)]">${formatPrice(item.price * item.quantity)}</span>
+                                      <span className="font-bold text-black">${formatPrice(item.price * item.quantity)}</span>
                                     </li>
                                   ))}
                                 </ul>
@@ -264,19 +271,19 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                     {booksTotal > 0 && (
                                       <div className="flex justify-between items-center">
                                         <span className="text-gray-600">Valor libros:</span> 
-                                        <span className="text-gray-800 font-bold">${formatPrice(booksTotal)}</span>
+                                        <span className="text-black font-bold">${formatPrice(booksTotal)}</span>
                                       </div>
                                     )}
                                     {articlesTotal > 0 && (
                                       <div className="flex justify-between items-center">
                                         <span className="text-gray-600">Valor artículos:</span> 
-                                        <span className="text-gray-800 font-bold">${formatPrice(articlesTotal)}</span>
+                                        <span className="text-black font-bold">${formatPrice(articlesTotal)}</span>
                                       </div>
                                     )}
                                     {(entry.discount || 0) > 0 && (
                                       <div className="flex justify-between items-center bg-emerald-100/50 px-2 py-1 -mx-2 rounded-md">
                                         <span className="text-emerald-700 font-bold">Descuento ({entry.discount}%):</span> 
-                                        <span className="text-emerald-600 font-black">-${formatPrice(discountAmount)}</span>
+                                        <span className="text-emerald-600 font-black">${formatPrice(discountAmount)}</span>
                                       </div>
                                     )}
                                     {entry.debtBefore > 0 && (
@@ -293,11 +300,11 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                     )}
                                     <div className="flex justify-between items-center pt-2 border-t border-gray-200/60 mt-2">
                                       <span className="text-gray-600">Total Venta:</span> 
-                                      <span className="text-gray-900 font-black">${formatPrice(netTotalToPay)}</span>
+                                      <span className="text-red-600 font-black">${formatPrice(netTotalToPay)}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
                                       <span className="text-gray-600">Lo que pagó:</span> 
-                                      <span className="text-gray-900 font-black">${formatPrice(entry.amountPaid)}</span>
+                                      <span className="text-emerald-600 font-black">${formatPrice(amountPaidToUse)}</span>
                                     </div>
                                 </div>
 
@@ -332,7 +339,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
         </div>
       </AnimatePresence>
 
-      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
       <AnimatePresence>
         {itemToDelete && (
           <div key="delete-confirm-modal" className="fixed inset-0 z-[110] flex items-center justify-center p-4">

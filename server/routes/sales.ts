@@ -40,13 +40,7 @@ router.post("/", async (req, res) => {
       const currentDebt = clientDoc?.exists ? (clientDoc.data().totalDebt || 0) : 0;
       const currentCredit = clientDoc?.exists ? (clientDoc.data().creditBalance || 0) : 0;
       
-      let effectiveAmountForThisSale = Number(amountPaid);
-
-      if (currentCredit > 0) {
-        const creditToUse = Math.min(currentCredit, Number(total));
-        effectiveAmountForThisSale += creditToUse;
-      }
-
+      // Matemática limpia: (Costo Total de la venta) - (Efectivo Real Pagado) = Impacto en la cuenta
       const netChange = Number(total) - Number(amountPaid);
       const finalNetBalance = currentDebt - currentCredit + netChange;
 
@@ -72,7 +66,7 @@ router.post("/", async (req, res) => {
         clientId: finalClientId,
         clientName,
         total: Number(total),
-        amountPaid: effectiveAmountForThisSale,
+        amountPaid: Number(amountPaid), // AQUÍ LA MAGIA: Guarda SÓLO el efectivo real entregado
         sellerId,
         sellerName,
         paymentMethod: paymentMethod || [],

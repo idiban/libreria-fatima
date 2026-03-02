@@ -97,9 +97,6 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
           ))
         ) : filteredSales.length > 0 ? (
           filteredSales.map((sale) => {
-            const balance = (sale.total ?? 0) - (sale.amountPaid ?? 0);
-            const isFavor = balance < 0;
-
             return (
               <motion.div
                 layout
@@ -129,27 +126,18 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-4 sm:gap-8 bg-gray-50 p-3 rounded-2xl sm:bg-transparent sm:p-0">
-                    <div className="flex-1 sm:flex-none">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total</p>
-                      <p className="font-black text-[var(--color-primary)]">${formatPrice(sale.total ?? 0)}</p>
+                  <div className="flex items-center gap-6 sm:gap-10 bg-gray-50 p-3 rounded-2xl sm:bg-transparent sm:p-0">
+                    <div className="flex-1 sm:flex-none text-right sm:text-left">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Venta</p>
+                      <p className="font-black text-lg text-[var(--color-primary)]">${formatPrice(sale.total ?? 0)}</p>
                     </div>
-                    <div className="flex-1 sm:flex-none">
+                    <div className="flex-1 sm:flex-none text-right sm:text-left">
                       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Pagado</p>
-                      <p className="font-black text-emerald-600">${formatPrice(sale.amountPaid ?? 0)}</p>
-                    </div>
-                    <div className="flex-1 sm:flex-none">
-                      <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isFavor ? 'text-emerald-600' : 'text-gray-400'}`}>
-                        {isFavor ? 'A favor' : 'Deuda'}
-                      </p>
-                      <p className={`font-black ${isFavor ? 'text-emerald-500' : balance > 0 ? 'text-red-500' : 'text-gray-300'}`}>
-                        ${formatPrice(Math.abs(balance))}
-                      </p>
+                      <p className="font-black text-lg text-emerald-600">${formatPrice(sale.amountPaid ?? 0)}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* NUEVO: Fila de detalles (Notas, Método, Descuento) */}
                 {(sale.notes || (sale.paymentMethod && sale.paymentMethod.length > 0) || (sale.discount && sale.discount > 0)) && (
                   <div className="mt-1 pt-3 border-t border-gray-100/50 w-full flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                     <div className="space-y-2">
