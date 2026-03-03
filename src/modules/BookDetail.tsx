@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, MouseEvent } from 'react';
 import { ChevronLeft, BookOpen, ShoppingCart } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem, UserProfile } from '../types';
@@ -13,9 +13,31 @@ interface BookDetailProps {
 export default function BookDetail({ book, onBack, currentUser, onSaleClick }: BookDetailProps) {
   const [activeImage, setActiveImage] = useState<'cover' | 'back'>('cover');
 
+  // --- LÓGICA DEL ZOOM INTERNO ---
+  const [showZoom, setShowZoom] = useState(false);
+  const [zoomRatio, setZoomRatio] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
+    // Obtenemos las dimensiones y posición del contenedor en la pantalla
+    const { top, left, width, height } = e.currentTarget.getBoundingClientRect();
+    
+    // Calculamos la posición exacta del mouse dentro del contenedor
+    const x = e.clientX - left;
+    const y = e.clientY - top;
+
+    // Lo convertimos a porcentaje (0% a 100%)
+    const xPercent = Math.max(0, Math.min(100, (x / width) * 100));
+    const yPercent = Math.max(0, Math.min(100, (y / height) * 100));
+
+    setZoomRatio({ x: xPercent, y: yPercent });
+  };
+  // -------------------------------
+
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
+
+  const currentImageUrl = activeImage === 'cover' ? book.cover_url : book.contraportada_url;
 
   return (
     <motion.div
@@ -35,8 +57,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
         </button>
       </div>
 
-      {/* CONTENEDOR DEL LIBRO */}
-      <div className="flex-1 pb-10">
+      <div className="flex-1 p-4 md:p-6 lg:p-10">
         <div className="max-w-6xl mx-auto flex flex-col bg-white rounded-[3rem] p-6 sm:p-8 lg:p-12 shadow-xl border border-[#FDF2F0]">
           
           <div className="flex flex-col md:flex-row gap-8 lg:gap-16 items-start">
@@ -44,13 +65,20 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
             {/* Sección de Imagen (Izquierda) */}
             <div className="w-full md:w-[260px] lg:w-[280px] shrink-0 space-y-4 flex flex-col items-center mx-auto md:mx-0">
               
-              <div className="aspect-[3/4] w-full max-w-[200px] md:max-w-full rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner">
+              {/* Contenedor Principal de la Imagen (MODIFICADO CON ZOOM INTERNO) */}
+              <div 
+                className="aspect-[3/4] w-full max-w-[200px] md:max-w-full rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner relative cursor-crosshair"
+                onMouseEnter={() => currentImageUrl && setShowZoom(true)}
+                onMouseLeave={() => setShowZoom(false)}
+                onMouseMove={handleMouseMove}
+              >
+                {/* Imagen Base */}
                 {activeImage === 'cover' ? (
                   book.cover_url ? (
                     <img 
                       src={book.cover_url} 
                       alt={book.title} 
-                      className="w-full h-full object-cover transition-opacity duration-300"
+                      className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -62,8 +90,21 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                   <img 
                     src={book.contraportada_url} 
                     alt="Contraportada" 
-                    className="w-full h-full object-cover transition-opacity duration-300"
+                    className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
+                  />
+                )}
+
+                {/* ZOOM: Capa superpuesta que cubre TODO el recuadro */}
+                {showZoom && currentImageUrl && (
+                  <div
+                    className="absolute inset-0 z-10 bg-white"
+                    style={{
+                      backgroundImage: `url(${currentImageUrl})`,
+                      backgroundSize: '250%', /* Nivel de aumento. Si quieres que acerque más, pon 300% o 400% */
+                      backgroundPosition: `${zoomRatio.x}% ${zoomRatio.y}%`,
+                      backgroundRepeat: 'no-repeat',
+                    }}
                   />
                 )}
               </div>
@@ -100,10 +141,9 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
             {/* Sección de Info Principal y Descripción (Derecha) */}
             <div className="flex-1 w-full flex flex-col">
               
-              {/* Bloque de Información del Libro */}
               <div className="mb-6">
                 {book.category && (
-                  <span className="inline-block px-4 py-1.5 bg-[var(--color-warm-surface)] rounded-full text-xs font-black uppercase tracking-widest text-[var(--color-primary)] mb-4">
+                  <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">
                     {book.category}
                   </span>
                 )}
@@ -119,16 +159,15 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                     <button
                       onClick={() => onSaleClick(book)}
                       disabled={book.stock <= 0}
-                      className="w-full bg-[var(--color-primary)] text-white py-4 sm:py-5 rounded-[2rem] font-black text-lg shadow-xl shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                      className="w-full bg-[#B23B23] hover:bg-[#962D1A] text-white py-4 sm:py-5 rounded-[2rem] font-black text-lg shadow-2xl shadow-[#B23B23]/30 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ShoppingCart className="w-6 h-6 shrink-0" />
+                      <ShoppingCart className="w-6 h-6" />
                       Vender este libro
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Bloque de Descripción */}
               <div className="w-full pt-6 border-t border-[#FDF2F0]">
                 <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Descripción</h3>
                 <p className="text-gray-600 leading-relaxed text-base sm:text-lg whitespace-pre-line">
