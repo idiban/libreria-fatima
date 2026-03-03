@@ -3,57 +3,70 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const router = express.Router();
 
-// Ruta para Refinar Imagen
+// Ruta para Refinar Imagen (Detecta las 4 esquinas para transformar la perspectiva)
 router.post("/refine-image", async (req, res) => {
-  // Obtenemos la llave y le quitamos espacios en blanco o comillas accidentales
-  // Obtenemos la llave usando EL NUEVO NOMBRE
   const rawKey = process.env.GEMINI_KEY_FINAL || "";
   const apiKey = rawKey.replace(/['"]/g, '').trim();
 
   if (!apiKey) return res.status(500).json({ error: "API Key no configurada en el servidor" });
-  
 
   try {
     const { base64, side } = req.body;
     const ai = new GoogleGenAI({ apiKey });
 
-    const promptText = `RECORTE Y ENDEREZADO PROFESIONAL TOTAL: Detecta la ${side === 'front' ? 'portada' : 'contraportada'} del libro en la imagen. Corrige la perspectiva para que se vea perfectamente recta, plana y rectangular (vista de escaneo). REGLA OBLIGATORIA: Amplía la ${side === 'front' ? 'portada' : 'contraportada'} al máximo posible de forma que ocupe el 100% exacto de la imagen, de borde a borde. Prohibido dejar márgenes gruesos alrededor. ELIMINA ABSOLUTAMENTE TODO EL FONDO ORIGINAL: baldosas, suelo, piso, sombras, manos, dedos, muebles, madera, paredes o cualquier objeto externo. REGLA CRÍTICA DE BORDES: Si al enderezar o rotar quedan espacios vacíos o triangulares en las esquinas del encuadre rectangular final, rellena esos espacios vacíos ÚNICAMENTE con un color sólido y uniforme BLANCO GRISÁCEO CLARO (hex #F0F0F0). Devuelve la imagen perfectamente rectangular, rellenando todo el encuadre de forma gigante.`;
-    // Prompt optimizado para que la IA trabaje sobre un área más limpia
+    // Extraemos solo el buffer de la base64 original
+    const base64Data = base64.split(',')[1];
+
+    // PROMPT CORREGIDO: Se explica matemáticamente el plano 0-1000 y se fuerza a buscar el borde físico real.
+    const promptText = `Actúa como un sistema experto de visión artificial. Analiza la imagen y detecta los 4 vértices del CONTORNO EXTERIOR FÍSICO del libro entero (${side === 'front' ? 'portada' : 'contraportada'}). 
+    REGLAS CRÍTICAS: 
+    1. Debes enmarcar TODO EL LIBRO de extremo a extremo físico. El borde es el límite donde termina el material del libro y empieza el fondo (mesas, baldosas).
+    2. NUNCA recortes solo una foto, texto o recuadro interno del diseño del libro. Si ves letras, esas están DENTRO del libro.
+    3. Excluye por completo el fondo (mesa, mantel, etc).
+    4. El sistema de coordenadas está normalizado de 0 a 1000:
+       - X=0 es el borde izquierdo absoluto de la foto, X=1000 es el borde derecho absoluto.
+       - Y=0 es el borde superior absoluto de la foto, Y=1000 es el borde inferior absoluto.
+    Devuelve ÚNICAMENTE un JSON con las 4 esquinas exactas (top_left, top_right, bottom_right, bottom_left). Cada esquina debe tener 'x' e 'y'.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-2.5-flash', 
       contents: {
         parts: [
-          { inlineData: { data: base64.split(',')[1], mimeType: "image/jpeg" } },
+          { inlineData: { data: base64Data, mimeType: "image/jpeg" } },
           { text: promptText },
         ],
       },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            top_left: { type: Type.OBJECT, properties: { x: { type: Type.NUMBER }, y: { type: Type.NUMBER } }, required: ["x", "y"] },
+            top_right: { type: Type.OBJECT, properties: { x: { type: Type.NUMBER }, y: { type: Type.NUMBER } }, required: ["x", "y"] },
+            bottom_right: { type: Type.OBJECT, properties: { x: { type: Type.NUMBER }, y: { type: Type.NUMBER } }, required: ["x", "y"] },
+            bottom_left: { type: Type.OBJECT, properties: { x: { type: Type.NUMBER }, y: { type: Type.NUMBER } }, required: ["x", "y"] }
+          },
+          required: ["top_left", "top_right", "bottom_right", "bottom_left"]
+        }
+      }
     });
 
-    let newImage = base64;
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        newImage = `data:image/png;base64,${part.inlineData.data}`;
-        break;
-      }
-    }
+    const points = JSON.parse(response.text || "{}");
 
-    res.json({ image: newImage });
+    // Devolvemos solo los puntos. La magia del estiramiento visual la hará el frontend.
+    res.json({ points });
   } catch (error: any) {
     console.error("AI Refine Error:", error);
-    res.status(500).json({ error: "Error al procesar la imagen con IA." });
+    res.status(500).json({ error: "Error al detectar las esquinas de la imagen." });
   }
 });
 
-// Ruta para Escanear Datos del Libro
+// Ruta para Escanear Datos del Libro (TOTALMENTE INTACTA)
 router.post("/scan-book", async (req, res) => {
-  // Obtenemos la llave y le quitamos espacios en blanco o comillas accidentales
-  // Obtenemos la llave usando EL NUEVO NOMBRE
   const rawKey = process.env.GEMINI_KEY_FINAL || "";
   const apiKey = rawKey.replace(/['"]/g, '').trim();
 
   if (!apiKey) return res.status(500).json({ error: "API Key no configurada en el servidor" });
-  
 
   try {
     const { cover_url, contraportada_url } = req.body;

@@ -9,42 +9,85 @@ import {
   BookOpen, 
   ChevronUp,
   ChevronDown,
-  Trash2,
-  Check
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import ReactCrop, { Crop, PixelCrop } from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
 import { BookItem } from '../types';
 
-// --- NUEVA FUNCIÓN UTILITARIA PARA EL RECORTADOR (react-image-crop) ---
-const getCroppedImg = (image: HTMLImageElement, crop: PixelCrop): string => {
-  const canvas = document.createElement('canvas');
-  // Calculamos la escala real por si la imagen se está mostrando más pequeña en pantalla
-  const scaleX = image.naturalWidth / image.width;
-  const scaleY = image.naturalHeight / image.height;
-  
-  canvas.width = crop.width * scaleX;
-  canvas.height = crop.height * scaleY;
-  
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
+// --- NUEVA MAGIA MATEMÁTICA: TRANSFORMA LA PERSPECTIVA DE LAS 4 ESQUINAS (Efecto CamScanner) ---
+const warpPerspective = (base64: string, points: any): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!points || !points.top_left || !points.top_right || !points.bottom_right || !points.bottom_left) {
+      return resolve(base64); // Fallback por si la IA falla
+    }
 
-  ctx.drawImage(
-    image,
-    crop.x * scaleX,
-    crop.y * scaleY,
-    crop.width * scaleX,
-    crop.height * scaleY,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+    const img = new Image();
+    img.onload = () => {
+      // 1. Convertimos las coordenadas normalizadas (0-1000) a píxeles reales de la foto
+      const sTL = { x: (points.top_left.x / 1000) * img.width, y: (points.top_left.y / 1000) * img.height };
+      const sTR = { x: (points.top_right.x / 1000) * img.width, y: (points.top_right.y / 1000) * img.height };
+      const sBR = { x: (points.bottom_right.x / 1000) * img.width, y: (points.bottom_right.y / 1000) * img.height };
+      const sBL = { x: (points.bottom_left.x / 1000) * img.width, y: (points.bottom_left.y / 1000) * img.height };
 
-  return canvas.toDataURL('image/jpeg', 0.9);
+      // 2. Calculamos el ancho y alto del nuevo rectángulo estirado
+      const width1 = Math.hypot(sTR.x - sTL.x, sTR.y - sTL.y);
+      const width2 = Math.hypot(sBR.x - sBL.x, sBR.y - sBL.y);
+      const destWidth = Math.max(width1, width2);
+
+      const height1 = Math.hypot(sBL.x - sTL.x, sBL.y - sTL.y);
+      const height2 = Math.hypot(sBR.x - sTR.x, sBR.y - sTR.y);
+      const destHeight = Math.max(height1, height2);
+
+      // Creamos un canvas con la medida final rectangular perfecta
+      const canvas = document.createElement('canvas');
+      canvas.width = destWidth;
+      canvas.height = destHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(base64);
+
+      // 3. Destinos del rectángulo final perfecto (0,0 hasta ancho,alto)
+      const dTL = { x: 0, y: 0 };
+      const dTR = { x: destWidth, y: 0 };
+      const dBR = { x: destWidth, y: destHeight };
+      const dBL = { x: 0, y: destHeight };
+
+      // Matemática afín para mapear los triángulos
+      const drawTriangle = (s0: any, s1: any, s2: any, d0: any, d1: any, d2: any) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(d0.x, d0.y);
+        ctx.lineTo(d1.x, d1.y);
+        ctx.lineTo(d2.x, d2.y);
+        ctx.closePath();
+        ctx.clip();
+
+        const delta = s0.x * (s1.y - s2.y) - s1.x * (s0.y - s2.y) + s2.x * (s0.y - s1.y);
+        if (delta !== 0) {
+          const a = (d0.x * (s1.y - s2.y) - d1.x * (s0.y - s2.y) + d2.x * (s0.y - s1.y)) / delta;
+          const b = (d0.y * (s1.y - s2.y) - d1.y * (s0.y - s2.y) + d2.y * (s0.y - s1.y)) / delta;
+          const c = -(d0.x * (s1.x - s2.x) - d1.x * (s0.x - s2.x) + d2.x * (s0.x - s1.x)) / delta;
+          const d = -(d0.y * (s1.x - s2.x) - d1.y * (s0.x - s2.x) + d2.y * (s0.x - s1.x)) / delta;
+          const e = (d0.x * (s1.x * s2.y - s2.x * s1.y) - d1.x * (s0.x * s2.y - s2.x * s0.y) + d2.x * (s0.x * s1.y - s1.x * s0.y)) / delta;
+          const f = (d0.y * (s1.x * s2.y - s2.x * s1.y) - d1.y * (s0.x * s2.y - s2.x * s0.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / delta;
+
+          ctx.transform(a, b, c, d, e, f);
+          ctx.drawImage(img, 0, 0);
+        }
+        ctx.restore();
+      };
+
+      // Partimos el libro en 2 triángulos y los aplanamos
+      drawTriangle(sTL, sTR, sBL, dTL, dTR, dBL);
+      drawTriangle(sBL, sTR, sBR, dBL, dTR, dBR);
+
+      // MEJORA DE CALIDAD: Generamos el jpeg al 95% de calidad (antes estaba en 0.9)
+      resolve(canvas.toDataURL('image/jpeg', 0.95));
+    };
+    img.onerror = () => reject(new Error("Error al cargar imagen para perspectiva"));
+    img.src = base64;
+  });
 };
-// ------------------------------------------------
+// --------------------------------------------------------------------------------
 
 interface BookModalProps {
   isOpen: boolean;
@@ -75,21 +118,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPriceConfirm, setShowPriceConfirm] = useState(false);
 
-  // --- NUEVOS ESTADOS DEL RECORTADOR (react-image-crop) ---
-  const [showCropper, setShowCropper] = useState(false);
-  const [tempImage, setTempImage] = useState<string | null>(null);
-  const [currentCropSide, setCurrentCropSide] = useState<'front' | 'back' | null>(null);
-  const [crop, setCrop] = useState<Crop>({
-    unit: '%',
-    width: 80,
-    height: 80,
-    x: 10,
-    y: 10
-  });
-  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
-  // --------------------------------------------------------
-  
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
   const frontCameraRef = useRef<HTMLInputElement>(null);
@@ -132,8 +160,9 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         let width = img.width;
         let height = img.height;
 
-        const MAX_WIDTH = 600;
-        const MAX_HEIGHT = 800;
+        // MEJORA DE CALIDAD: Aumentamos los límites máximos para conservar nitidez de texto
+        const MAX_WIDTH = 1200; 
+        const MAX_HEIGHT = 1600;
 
         if (width > height) {
           if (width > MAX_WIDTH) {
@@ -152,7 +181,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
+        // MEJORA DE CALIDAD: Guardamos con un 90% de calidad en lugar del 80%
+        resolve(canvas.toDataURL('image/jpeg', 0.90));
       };
     });
   };
@@ -175,14 +205,17 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
 
       const data = await response.json();
       
+      // Aplicamos el estiramiento 3D usando los 4 puntos devueltos por la IA
+      const finalImageBase64 = await warpPerspective(base64, data.points);
+      
       if (side === 'front') {
-        setFormData(prev => ({ ...prev, cover_url: data.image }));
+        setFormData(prev => ({ ...prev, cover_url: finalImageBase64 }));
       } else {
-        setFormData(prev => ({ ...prev, contraportada_url: data.image }));
+        setFormData(prev => ({ ...prev, contraportada_url: finalImageBase64 }));
       }
     } catch (error: any) {
       console.error('Error refining image:', error);
-      alert(error.message || 'Error al refinar la imagen con IA.');
+      alert(error.message || 'Error al recortar la imagen con IA.');
     } finally {
       if (side === 'front') setIsRefiningFront(false);
       else setIsRefiningBack(false);
@@ -238,54 +271,14 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setTempImage(reader.result as string);
-        setCurrentCropSide(side);
-        setShowCropper(true);
-        // Reseteamos el recorte inicial
-        setCrop({ unit: '%', width: 80, height: 80, x: 10, y: 10 });
-        setCompletedCrop(null);
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        // Al cargarse la imagen, llamamos INMEDIATAMENTE a la IA para el recorte
+        await refineImage(base64, side);
       };
       reader.readAsDataURL(file);
     }
     e.target.value = ''; // Limpiamos el input
-  };
-
-  const handleSaveCrop = async () => {
-    if (!imgRef.current || !currentCropSide) return;
-
-    let cropToUse = completedCrop;
-    
-    // Si el usuario le da a "Listo" sin tocar nada, usamos el área seleccionada por defecto
-    if (!cropToUse || cropToUse.width === 0 || cropToUse.height === 0) {
-      const { width, height } = imgRef.current;
-      cropToUse = {
-        unit: 'px',
-        x: width * 0.1,
-        y: height * 0.1,
-        width: width * 0.8,
-        height: height * 0.8
-      };
-    }
-
-    try {
-      const croppedBase64 = getCroppedImg(imgRef.current, cropToUse);
-      const compressedBase64 = await compressImage(croppedBase64);
-      
-      if (currentCropSide === 'front') {
-        setFormData(prev => ({ ...prev, cover_url: compressedBase64 }));
-      } else {
-        setFormData(prev => ({ ...prev, contraportada_url: compressedBase64 }));
-      }
-      
-      setShowCropper(false);
-      setTempImage(null);
-      setCurrentCropSide(null);
-      
-    } catch (e) {
-      console.error(e);
-      alert("Hubo un error al procesar el recorte de la imagen.");
-    }
   };
 
   useEffect(() => {
@@ -447,19 +440,17 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                       <div className="grid grid-cols-2 gap-3 sm:gap-4">
                         
                         {/* PORTADA */}
-                        <div className="space-y-3">
+                        <div className="flex flex-col gap-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.cover_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
+                            {isRefiningFront && (
+                              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
+                                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
+                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center px-2">Ajustando imagen...</p>
+                              </div>
+                            )}
                             {formData.cover_url ? (
-                              <>
-                                <img src={formData.cover_url} alt="" className="w-full h-full object-cover bg-black/5" />
-                                {isRefiningFront && (
-                                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
-                                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                    <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
-                                  </div>
-                                )}
-                              </>
+                              <img src={formData.cover_url} alt="" className="w-full h-full object-contain bg-black/5" />
                             ) : (
                               <div className="flex flex-col items-center gap-2">
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm" onClick={() => frontInputRef.current?.click()}>
@@ -468,63 +459,50 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                                 <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
                               </div>
                             )}
-                            <div className="absolute bottom-2 left-2 right-2 flex gap-1 z-10">
+                          </div>
+                          
+                          {/* BOTONES MOVIDOS DEBAJO DE LA IMAGEN DE PORTADA */}
+                          <div className="flex gap-1 w-full mt-1">
+                            <button 
+                              type="button"
+                              onClick={() => frontCameraRef.current?.click()}
+                              className="flex-1 py-2 sm:py-2.5 bg-gray-100 rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => frontInputRef.current?.click()}
+                              className="flex-1 py-2 sm:py-2.5 bg-gray-100 rounded-lg sm:rounded-xl text-gray-500 hover:bg-gray-200 transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            {formData.cover_url && (
                               <button 
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); frontCameraRef.current?.click(); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                                onClick={() => removeImage('front')}
+                                className="flex-1 py-2 sm:py-2.5 bg-red-50 rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
                               >
-                                <Camera className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                               </button>
-                              <button 
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); frontInputRef.current?.click(); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
-                              >
-                                <Upload className="w-4 h-4" />
-                              </button>
-                              {formData.cover_url && (
-                                <button 
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); removeImage('front'); }}
-                                  className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                            )}
                           </div>
                           <input type="file" ref={frontInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'front')} />
                           <input type="file" ref={frontCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'front')} />
-                          
-                          {/* BOTÓN ALARGADO - PORTADA */}
-                          {formData.cover_url && (
-                            <button
-                              type="button"
-                              onClick={() => refineImage(formData.cover_url, 'front')}
-                              disabled={isRefiningFront}
-                              className="w-full py-2 px-3 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs sm:text-sm font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[var(--color-primary)]/20 transition-colors disabled:opacity-50"
-                            >
-                              <Sparkles className="w-4 h-4" />
-                              {isRefiningFront ? 'Procesando...' : 'Arreglar imagen'}
-                            </button>
-                          )}
                         </div>
 
                         {/* CONTRAPORTADA */}
-                        <div className="space-y-3">
+                        <div className="flex flex-col gap-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.contraportada_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
+                            {isRefiningBack && (
+                              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
+                                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
+                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center px-2">Ajustando imagen...</p>
+                              </div>
+                            )}
                             {formData.contraportada_url ? (
-                              <>
-                                <img src={formData.contraportada_url} alt="" className="w-full h-full object-cover bg-black/5" />
-                                {isRefiningBack && (
-                                  <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
-                                    <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                    <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">Ajustando...</p>
-                                  </div>
-                                )}
-                              </>
+                              <img src={formData.contraportada_url} alt="" className="w-full h-full object-contain bg-black/5" />
                             ) : (
                               <div className="flex flex-col items-center gap-2">
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm" onClick={() => backInputRef.current?.click()}>
@@ -533,47 +511,36 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                                 <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400">Subir</p>
                               </div>
                             )}
-                            <div className="absolute bottom-2 left-2 right-2 flex gap-1 z-10">
+                          </div>
+                          
+                          {/* BOTONES MOVIDOS DEBAJO DE LA IMAGEN DE CONTRAPORTADA */}
+                          <div className="flex gap-1 w-full mt-1">
+                            <button 
+                              type="button"
+                              onClick={() => backCameraRef.current?.click()}
+                              className="flex-1 py-2 sm:py-2.5 bg-gray-100 rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Camera className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => backInputRef.current?.click()}
+                              className="flex-1 py-2 sm:py-2.5 bg-gray-100 rounded-lg sm:rounded-xl text-gray-500 hover:bg-gray-200 transition-all shadow-sm flex items-center justify-center"
+                            >
+                              <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                            </button>
+                            {formData.contraportada_url && (
                               <button 
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); backCameraRef.current?.click(); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-all shadow-sm flex items-center justify-center"
+                                onClick={() => removeImage('back')}
+                                className="flex-1 py-2 sm:py-2.5 bg-red-50 rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
                               >
-                                <Camera className="w-4 h-4" />
+                                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                               </button>
-                              <button 
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); backInputRef.current?.click(); }}
-                                className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-gray-400 hover:bg-gray-100 transition-all shadow-sm flex items-center justify-center"
-                              >
-                                <Upload className="w-4 h-4" />
-                              </button>
-                              {formData.contraportada_url && (
-                                <button 
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); removeImage('back'); }}
-                                  className="flex-1 py-1.5 sm:py-2 bg-white/90 backdrop-blur-sm rounded-lg sm:rounded-xl text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm flex items-center justify-center"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
+                            )}
                           </div>
                           <input type="file" ref={backInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'back')} />
                           <input type="file" ref={backCameraRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => handleFileChange(e, 'back')} />
-                          
-                          {/* BOTÓN ALARGADO - CONTRAPORTADA */}
-                          {formData.contraportada_url && (
-                            <button
-                              type="button"
-                              onClick={() => refineImage(formData.contraportada_url, 'back')}
-                              disabled={isRefiningBack}
-                              className="w-full py-2 px-3 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs sm:text-sm font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-[var(--color-primary)]/20 transition-colors disabled:opacity-50"
-                            >
-                              <Sparkles className="w-4 h-4" />
-                              {isRefiningBack ? 'Procesando...' : 'Arreglar imagen'}
-                            </button>
-                          )}
                         </div>
 
                       </div>
@@ -739,64 +706,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
           </div>
         )}
       </AnimatePresence>
-
-      {/* --- NUEVO MODAL DEL RECORTADOR (react-image-crop) --- */}
-      <AnimatePresence>
-        {showCropper && tempImage && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-0 sm:p-4 bg-black/90 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full h-full sm:h-[90vh] sm:max-w-2xl bg-[#111] sm:rounded-[2rem] overflow-hidden flex flex-col"
-            >
-              {/* Header del Cropper */}
-              <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center text-white">
-                <button 
-                  onClick={() => { setShowCropper(false); setTempImage(null); }}
-                  className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-                <span className="font-bold text-sm uppercase tracking-widest text-white/80">Ajusta los bordes</span>
-                <button 
-                  onClick={handleSaveCrop}
-                  className="px-5 py-2 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] transition-colors text-white rounded-full font-bold flex items-center gap-2 shadow-lg"
-                >
-                  <Check className="w-5 h-5" /> Listo
-                </button>
-              </div>
-
-              {/* Área de la imagen dinámica */}
-              <div className="flex-1 w-full overflow-hidden flex items-center justify-center p-4 pt-20 pb-20">
-                <div className="flex justify-center items-center max-h-full max-w-full">
-                  <ReactCrop
-                    crop={crop}
-                    onChange={(_, percentCrop) => setCrop(percentCrop)}
-                    onComplete={(c) => setCompletedCrop(c)}
-                  >
-                    <img
-                      ref={imgRef}
-                      src={tempImage}
-                      alt="Encuadre"
-                      className="max-h-[70vh] w-auto border-2 border-white/5 rounded-md shadow-2xl"
-                      style={{ display: 'block' }}
-                    />
-                  </ReactCrop>
-                </div>
-              </div>
-
-              {/* Instrucción inferior visual */}
-              <div className="absolute bottom-0 left-0 right-0 z-10 p-6 bg-gradient-to-t from-black/90 to-transparent pointer-events-none">
-                <p className="text-white/60 text-center text-xs sm:text-sm font-medium">
-                  Arrastra las esquinas del recuadro para que encajen justo con el libro
-                </p>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-      {/* ----------------------------------------------------- */}
 
       {/* Modal de Confirmación de Precio */}
       <AnimatePresence>
