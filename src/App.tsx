@@ -91,10 +91,10 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   
   // Session Timer
-  const [timeLeft, setTimeLeft] = useState(3600);
+  const [timeLeft, setTimeLeft] = useState(3600); // 1 hora
 
   const resetTimer = useCallback(() => {
-    setTimeLeft(3600);
+    setTimeLeft(3600); // 1 hora
   }, []);
 
   useEffect(() => {
@@ -122,6 +122,10 @@ export default function App() {
   const fetchBooks = useCallback(async () => {
     try {
       const response = await fetch('/api/books');
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.indexOf('application/json') !== -1) {
         const data = await response.json();
@@ -157,6 +161,10 @@ export default function App() {
   const fetchUsers = useCallback(async () => {
     try {
       const res = await fetch('/api/users');
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.indexOf('application/json') !== -1) {
         const data = await res.json();
@@ -169,24 +177,20 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // --- ESTE ES EL USEEFFECT MODIFICADO ---
   useEffect(() => {
     fetchBooks();
     checkAuth();
 
-    // NUEVO: Escuchar el evento personalizado 'stockUpdated'
     const handleStockUpdate = () => {
       fetchBooks();
     };
 
     window.addEventListener('stockUpdated', handleStockUpdate);
 
-    // Limpieza al desmontar
     return () => {
       window.removeEventListener('stockUpdated', handleStockUpdate);
     };
   }, [fetchBooks, checkAuth]);
-  // ----------------------------------------
 
   useEffect(() => {
     if (activeView === 'users') fetchUsers();
@@ -205,6 +209,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stock: newStock })
       });
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
       if (response.ok) {
         setBooks(prev => prev.map(b => b.id === bookId ? { ...b, stock: newStock } : b));
       }

@@ -57,12 +57,12 @@ router.post("/login", async (req, res) => {
 
     await logActivity(user.id, user.username, "LOGIN");
 
-    const oneHour = 3600000;
+    const sessionTime = 3600000; // 1 hora
     res.cookie("user", JSON.stringify(user), { 
       httpOnly: true, 
       sameSite: 'none', 
       secure: true,
-      maxAge: oneHour
+      maxAge: sessionTime
     });
     res.json(user);
   } catch (error) {
@@ -74,12 +74,12 @@ router.post("/refresh-session", (req, res) => {
   const userCookie = req.cookies.user;
   if (!userCookie) return res.status(401).json({ error: "No session" });
   
-  const oneHour = 3600000;
+  const sessionTime = 3600000; // 1 hora
   res.cookie("user", userCookie, { 
     httpOnly: true, 
     sameSite: 'none', 
     secure: true,
-    maxAge: oneHour
+    maxAge: sessionTime
   });
   res.json({ success: true });
 });
@@ -160,7 +160,6 @@ router.patch('/me/password', checkAuth, async (req, res) => {
 
     await auth.updateUser(userId, { password: newPassword });
 
-    // --- NUEVO: LOG DE CONTRASEÑA PROPIA ---
     await logActivity(currentUser.id, currentUser.username, "USER_UPDATE", { 
       details: "Actualizó su propia contraseña" 
     });
