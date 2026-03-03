@@ -68,7 +68,12 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
               {/* Contenedor Principal de la Imagen */}
               <div 
                 className="aspect-[3/4] w-full max-w-[200px] md:max-w-full rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner relative cursor-crosshair"
-                onMouseEnter={() => currentImageUrl && setShowZoom(true)}
+                onMouseEnter={() => {
+                  // Solo activamos el zoom si el dispositivo usa mouse (no táctil)
+                  if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+                    currentImageUrl && setShowZoom(true);
+                  }
+                }}
                 onMouseLeave={() => setShowZoom(false)}
                 onMouseMove={handleMouseMove}
               >
@@ -141,7 +146,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
             {/* Sección de Info Principal y Descripción (Derecha) */}
             <div className="flex-1 w-full flex flex-col">
               
-              <div className="mb-6">
+              <div className="mb-2">
                 {book.category && (
                   <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">
                     {book.category}
@@ -168,7 +173,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                 )}
               </div>
 
-              <div className="w-full pt-6 border-t border-[#FDF2F0]">
+              <div className="w-full pt-4 border-t border-[#FDF2F0]">
                 <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-3">Descripción</h3>
                 <p className="text-gray-600 leading-relaxed text-base sm:text-lg whitespace-pre-line">
                   {book.description || 'Sin descripción disponible.'}
