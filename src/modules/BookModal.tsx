@@ -343,7 +343,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
       title: !formData.title.trim(),
       author: !formData.author.trim(),
       price: !formData.price || formData.price <= 0,
-      stock: formData.stock === undefined || formData.stock === null || formData.stock <= 0,
+      stock: formData.stock === undefined || formData.stock === null || formData.stock < 0,
       category: !formData.category.trim()
     };
     

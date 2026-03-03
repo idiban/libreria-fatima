@@ -527,15 +527,15 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                 {/* 2. SECCIÓN: CARRITO DE COMPRAS */}
                 <div className="space-y-2">
                   <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Artículos en el Carrito</label>
-                  <div className="space-y-2">
+                  <div className="space-y-3 bg-[var(--color-primary)]/5 p-3 sm:p-4 rounded-[1.5rem] border border-[var(--color-primary)]/10 shadow-inner">
                     {items.length === 0 && (
-                      <p className="text-sm font-bold text-gray-400 bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-4 text-center">
+                      <p className="text-sm font-bold text-[var(--color-primary)]/60 bg-white/60 border border-dashed border-[var(--color-primary)]/20 rounded-2xl p-4 text-center">
                         El carrito está vacío. Agrega libros o artículos.
                       </p>
                     )}
                     {items.map((item) => (
-                      <div key={item.bookId} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-3 bg-white border border-[var(--color-warm-surface)] rounded-xl sm:rounded-2xl shadow-sm relative">
-                        <div className="flex items-center gap-3 flex-1">
+                      <div key={item.bookId} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 sm:p-3 bg-white border border-[var(--color-primary)]/10 rounded-xl sm:rounded-2xl shadow-md hover:shadow-lg transition-all relative">
+                      <div className="flex items-center gap-3 flex-1">
                           <div className="w-10 h-14 rounded-lg bg-gray-50 overflow-hidden shrink-0 border border-gray-100">
                             {item.cover_url ? (
                               <img src={item.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -835,7 +835,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-sm bg-white rounded-[2.5rem] shadow-2xl overflow-hidden p-8 sm:p-10 text-center">
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6"><PiggyBank className="w-10 h-10 text-emerald-500" /></div>
               <h3 className="text-xl sm:text-2xl font-black text-[#2D1A1A] mb-3">¿Saldo a Favor?</h3>
-              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> quedará con <span className="text-emerald-600 font-black">${formatPrice(balanceDifference)}</span> de saldo a favor, ¿está de acuerdo?</p>
+              <p className="text-gray-500 font-medium mb-8 leading-relaxed text-sm sm:text-base"><span className="font-bold text-gray-700">{clientName || 'El comprador'}</span> quedará con saldo a favor de <span className="text-emerald-600 font-black">${formatPrice(balanceDifference)}</span> ¿está de acuerdo?</p>
               <div className="flex flex-col gap-3">
                 <button onClick={executeFinalize} disabled={isLoading} className="w-full py-3.5 sm:py-4 bg-emerald-500 text-white rounded-2xl font-black shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 text-sm sm:text-base">
                   {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sí, guardar saldo'}

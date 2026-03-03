@@ -159,25 +159,26 @@ export default function Sidebar({
 
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all relative group"
+          className="w-full flex items-center justify-between px-4 py-3 text-red-500 hover:bg-red-50 rounded-2xl transition-all relative group"
         >
-          <LogOut className="w-5 h-5 shrink-0" />
-          {(!isCollapsed || isMobileOpen) && <span className="text-sm font-bold">Cerrar Sesión</span>}
+          <div className="flex items-center gap-3">
+            <LogOut className="w-5 h-5 shrink-0" />
+            {(!isCollapsed || isMobileOpen) && <span className="text-sm font-bold">Cerrar Sesión</span>}
+          </div>
+
+          {/* Temporizador exclusivo para el owner */}
+          {(!isCollapsed || isMobileOpen) && currentUser?.role === 'owner' && timeLeft !== undefined && (
+            <span className="text-[11px] font-black font-mono bg-red-100 text-red-600 px-2 py-1 rounded-lg">
+              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+            </span>
+          )}
+
           {isCollapsed && !isMobileOpen && (
             <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-              Cerrar Sesión
+              Cerrar Sesión {currentUser?.role === 'owner' && timeLeft !== undefined && `- ${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}`}
             </div>
           )}
         </button>
-        
-        <div className="flex items-center gap-2">
-          {/* Timer hidden as requested */}
-          {false && currentUser && (!isCollapsed || isMobileOpen) && timeLeft !== undefined && (
-            <div className="px-3 py-1 bg-gray-100 rounded-lg text-[10px] font-black font-mono text-gray-500">
-              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-            </div>
-          )}
-        </div>
       </div>
     </motion.aside>
     </>

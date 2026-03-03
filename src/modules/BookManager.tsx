@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Edit2, Trash2, AlertCircle, Check, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Package, Plus, Search, Edit2, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem } from '../types';
-import ConfirmationModal from '../components/ConfirmationModal'; // Nuevo modal de confirmación
+import ConfirmationModal from '../components/ConfirmationModal'; 
 
 interface BookManagerProps {
   books: BookItem[];
@@ -11,17 +11,57 @@ interface BookManagerProps {
   onBookDeleted: () => void;
 }
 
+type SortColumn = 'title' | 'category' | 'stock';
+type SortDirection = 'asc' | 'desc';
+
 export default function BookManager({ books, onEditBook, onAddBook, onBookDeleted }: BookManagerProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [bookToDelete, setBookToDelete] = useState<BookItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Nuevos estados para el ordenamiento
+  const [sortColumn, setSortColumn] = useState<SortColumn>('title');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const normalizeText = (text: string) => {
     if (!text) return '';
     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
 
-  const sortedBooks = [...books].sort((a, b) => a.title.localeCompare(b.title));
+  // Función para manejar el clic en las columnas
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Si ya estamos ordenando por esta columna, invertimos la dirección
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Si es una columna nueva, la seleccionamos y ordenamos ascendente por defecto
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  // Función que renderiza el ícono correcto según el estado de ordenamiento
+  const renderSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />;
+    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4 text-[var(--color-primary)]" /> : <ArrowDown className="w-4 h-4 text-[var(--color-primary)]" />;
+  };
+
+  // Lógica dinámica de ordenamiento
+  const sortedBooks = [...books].sort((a, b) => {
+    let compareResult = 0;
+    
+    if (sortColumn === 'title') {
+      compareResult = a.title.localeCompare(b.title);
+    } else if (sortColumn === 'category') {
+      const catA = a.category || '';
+      const catB = b.category || '';
+      compareResult = catA.localeCompare(catB);
+    } else if (sortColumn === 'stock') {
+      compareResult = a.stock - b.stock;
+    }
+
+    return sortDirection === 'asc' ? compareResult : -compareResult;
+  });
   
   const filteredBooks = sortedBooks.filter(b => {
     const normalizedSearch = normalizeText(searchTerm);
@@ -85,10 +125,31 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[var(--color-warm-surface)]">
-                <th className="px-8 py-6">Libro</th>
-                <th className="px-8 py-6">Categoría</th>
-                <th className="px-8 py-6 text-center">Stock</th>
-                <th className="px-8 py-6 text-right">Acciones</th>
+                <th 
+                  className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                  onClick={() => handleSort('title')}
+                >
+                  <div className="flex items-center gap-2">
+                    Libro {renderSortIcon('title')}
+                  </div>
+                </th>
+                <th 
+                  className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                  onClick={() => handleSort('category')}
+                >
+                  <div className="flex items-center gap-2">
+                    Categoría {renderSortIcon('category')}
+                  </div>
+                </th>
+                <th 
+                  className="px-8 py-6 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                  onClick={() => handleSort('stock')}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    Stock {renderSortIcon('stock')}
+                  </div>
+                </th>
+                <th className="px-8 py-6 text-right cursor-default">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-warm-surface)]">
@@ -131,7 +192,7 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
             <div className="flex items-center justify-between pt-4 border-t border-[var(--color-warm-surface)]">
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</span>
-                <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : 'text-[var(--color-primary)]'}`}>
+                <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
                   {book.stock}
                 </span>
               </div>
@@ -201,7 +262,7 @@ function BookRow({ book, onEditBook, onDeleteRequest }: BookRowProps) {
         </span>
       </td>
       <td className="px-8 py-6 text-center">
-        <div className={`text-lg font-black ${book.stock === 0 ? 'text-red-500' : 'text-[var(--color-primary)]'}`}>
+        <div className={`text-lg font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
           {book.stock}
         </div>
       </td>
