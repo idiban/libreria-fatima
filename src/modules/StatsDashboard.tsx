@@ -9,7 +9,8 @@ import {
   PiggyBank,
   AlertTriangle,
   Trophy,
-  UserX
+  UserX,
+  Loader2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { 
@@ -30,6 +31,14 @@ export default function StatsDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('all'); // Filtro de tiempo
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const timeOptions = [
+    { value: 'today', label: 'Hoy' },
+    { value: '7days', label: 'Últimos 7 días' },
+    { value: 'month', label: 'Este Mes' },
+    { value: 'all', label: 'Todo el tiempo' }
+  ];
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -81,18 +90,46 @@ export default function StatsDashboard() {
           <p className="text-gray-500 font-medium">Resumen del rendimiento financiero y de inventario.</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl shadow-sm border border-[var(--color-warm-surface)]">
-          <Filter className="w-5 h-5 text-[var(--color-primary)]" />
-          <select 
-            className="bg-transparent font-black text-sm text-[#2D1A1A] outline-none cursor-pointer"
-            value={timeframe}
-            onChange={(e) => setTimeframe(e.target.value)}
+        <div className="relative">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+            className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-[var(--color-warm-surface)] hover:border-[var(--color-primary)] hover:shadow-md transition-all cursor-pointer group"
           >
-            <option value="today">Hoy</option>
-            <option value="7days">Últimos 7 días</option>
-            <option value="month">Este Mes</option>
-            <option value="all">Todo el tiempo</option>
-          </select>
+            <Filter className="w-5 h-5 text-[var(--color-primary)] group-hover:scale-110 transition-transform" />
+            <span className="font-black text-sm text-[#2D1A1A]">
+              {timeOptions.find(opt => opt.value === timeframe)?.label || 'Todo el tiempo'}
+            </span>
+            <svg 
+              className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} 
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isDropdownOpen && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-[#FDF2F0] overflow-hidden z-50 py-2"
+            >
+              {timeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setTimeframe(opt.value);
+                    setIsDropdownOpen(false);
+                  }}
+                  className={`w-full text-left px-5 py-3 text-sm font-black transition-colors hover:bg-[var(--color-warm-bg)] ${
+                    timeframe === opt.value ? 'text-[var(--color-primary)] bg-[var(--color-warm-bg)]' : 'text-gray-500 hover:text-[#2D1A1A]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </motion.div>
+          )}
         </div>
       </div>
 
