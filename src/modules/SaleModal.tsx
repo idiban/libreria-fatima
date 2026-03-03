@@ -474,7 +474,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                         onClick={() => setShowCustomItemForm(true)}
                         className="w-full py-3.5 mt-2 flex items-center justify-center gap-2 text-[var(--color-primary)] bg-[var(--color-primary)]/5 border-2 border-dashed border-[var(--color-primary)]/30 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest transition-all group"
                       >
-                        <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> Añadir artículo manual
+                        <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> Añadir artículo
                       </button>
                     ) : (
                       <div className="p-3 sm:p-4 bg-[var(--color-primary)]/5 border-2 border-dashed border-[var(--color-primary)]/40 rounded-2xl flex flex-col sm:flex-row gap-3 items-start sm:items-center mt-2 transition-all">
