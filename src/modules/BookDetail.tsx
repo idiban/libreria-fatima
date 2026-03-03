@@ -65,7 +65,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
             {/* Sección de Imagen (Izquierda) */}
             <div className="w-full md:w-[260px] lg:w-[280px] shrink-0 space-y-4 flex flex-col items-center mx-auto md:mx-0">
               
-              {/* Contenedor Principal de la Imagen (MODIFICADO CON ZOOM INTERNO) */}
+              {/* Contenedor Principal de la Imagen */}
               <div 
                 className="aspect-[3/4] w-full max-w-[200px] md:max-w-full rounded-[2rem] overflow-hidden bg-gray-50 shadow-inner relative cursor-crosshair"
                 onMouseEnter={() => currentImageUrl && setShowZoom(true)}
@@ -78,7 +78,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                     <img 
                       src={book.cover_url} 
                       alt={book.title} 
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -90,7 +90,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                   <img 
                     src={book.contraportada_url} 
                     alt="Contraportada" 
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     referrerPolicy="no-referrer"
                   />
                 )}
@@ -101,7 +101,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                     className="absolute inset-0 z-10 bg-white"
                     style={{
                       backgroundImage: `url(${currentImageUrl})`,
-                      backgroundSize: '250%', /* Nivel de aumento. Si quieres que acerque más, pon 300% o 400% */
+                      backgroundSize: '250%',
                       backgroundPosition: `${zoomRatio.x}% ${zoomRatio.y}%`,
                       backgroundRepeat: 'no-repeat',
                     }}
@@ -119,7 +119,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                     }`}
                   >
                     {book.cover_url ? (
-                      <img src={book.cover_url} alt="Portada miniatura" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={book.cover_url} alt="Portada miniatura" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                     ) : (
                       <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                         <BookOpen className="w-6 h-6 text-gray-300" />
@@ -132,7 +132,7 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
                       activeImage === 'back' ? 'border-[var(--color-primary)] opacity-100 shadow-md' : 'border-transparent opacity-50 hover:opacity-100'
                     }`}
                   >
-                    <img src={book.contraportada_url} alt="Contraportada miniatura" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={book.contraportada_url} alt="Contraportada miniatura" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                   </button>
                 </div>
               )}

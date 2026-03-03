@@ -124,7 +124,7 @@ export default function Catalog({
                 <img 
                   src={book.cover_url} 
                   alt={book.title} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                  className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
                   referrerPolicy="no-referrer"
                 />
               ) : (
