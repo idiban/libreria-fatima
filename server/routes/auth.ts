@@ -62,6 +62,7 @@ router.post("/login", async (req, res) => {
       httpOnly: true, 
       sameSite: 'none', 
       secure: true,
+      signed: true,
       maxAge: sessionTime
     });
     res.json(user);
@@ -71,7 +72,7 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/refresh-session", (req, res) => {
-  const userCookie = req.cookies.user;
+  const userCookie = req.signedCookies.user;
   if (!userCookie) return res.status(401).json({ error: "No session" });
   
   const sessionTime = 3600000; // 1 hora
@@ -79,13 +80,14 @@ router.post("/refresh-session", (req, res) => {
     httpOnly: true, 
     sameSite: 'none', 
     secure: true,
+    signed: true,
     maxAge: sessionTime
   });
   res.json({ success: true });
 });
 
 router.post("/logout", async (req, res) => {
-  const userCookie = req.cookies.user;
+  const userCookie = req.signedCookies.user;
   if (userCookie) {
     try {
       const user = JSON.parse(userCookie);
@@ -97,7 +99,7 @@ router.post("/logout", async (req, res) => {
 });
 
 router.get("/me", (req, res) => {
-  const userCookie = req.cookies.user;
+  const userCookie = req.signedCookies.user;
   if (!userCookie) return res.status(401).json({ error: "No autenticado" });
   res.json(JSON.parse(userCookie));
 });
@@ -107,7 +109,7 @@ router.post("/change-password", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    const userCookie = req.cookies.user;
+    const userCookie = req.signedCookies.user;
     if (!userCookie) return res.status(401).json({ error: "No autenticado" });
     
     const currentUser = JSON.parse(userCookie);
@@ -126,7 +128,7 @@ router.patch('/me/password', checkAuth, async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   const { currentPassword, newPassword } = req.body;
-  const userCookie = req.cookies.user;
+  const userCookie = req.signedCookies.user;
   if (!userCookie) return res.status(401).json({ error: 'No autenticado' });
   
   const currentUser = JSON.parse(userCookie);

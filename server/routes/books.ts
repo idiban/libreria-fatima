@@ -88,7 +88,7 @@ router.patch("/:id", async (req, res) => {
     if (updates.stock !== undefined) {
       const bookDoc = await firestore.collection("libros").doc(id).get();
       const bookData = bookDoc.data();
-      const userCookie = req.cookies.user;
+      const userCookie = req.signedCookies.user;
       if (userCookie) {
         const user = JSON.parse(userCookie);
         await logActivity(user.id, user.username, "STOCK_UPDATE", {

@@ -1,4 +1,3 @@
-
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, normalizeUsername, generateEmail } from "../utils.ts";
@@ -41,7 +40,8 @@ router.get("/", async (req, res) => {
     const snapshot = await firestore.collection("usuarios").get();
     let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
 
-    const userCookie = req.cookies?.user;
+    // CORRECCIÓN: Se usa signedCookies
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       try {
         const currentUser = JSON.parse(userCookie);
@@ -79,8 +79,8 @@ router.patch("/:id/password", async (req, res) => {
     const authUser = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(authUser.uid, { password });
 
-    // --- LOG DE CAMBIO DE CONTRASEÑA RECUPERADO ---
-    const userCookie = req.cookies?.user;
+    // CORRECCIÓN: Se usa signedCookies
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
@@ -117,16 +117,9 @@ router.post("/", async (req, res) => {
         displayName: username
       });
     } catch (createError: any) {
-      // AUTO-REPARACIÓN DE USUARIOS FANTASMAS
+      // CORRECCIÓN: Se eliminó la auto-reparación destructiva
       if (createError.code === 'auth/email-already-exists') {
-        const orphanedUser = await admin.auth().getUserByEmail(email);
-        await admin.auth().deleteUser(orphanedUser.uid); 
-        
-        authUser = await admin.auth().createUser({
-          email,
-          password,
-          displayName: username
-        });
+        return res.status(400).json({ error: "El correo generado para este usuario ya está en uso en el sistema." });
       } else {
         throw createError;
       }
@@ -140,7 +133,7 @@ router.post("/", async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    const userCookie = req.cookies.user;
+    const userCookie = req.signedCookies.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_CREATE", {
@@ -169,7 +162,6 @@ router.delete("/:id", async (req, res) => {
     const userData = userDoc.data();
     if (userData?.role === 'owner') return res.status(403).json({ error: "No se puede eliminar al Propietario (Owner)" });
 
-    // BORRADO SEGURO
     if (userData?.email) {
       try {
         const authUser = await admin.auth().getUserByEmail(userData.email);
@@ -185,7 +177,7 @@ router.delete("/:id", async (req, res) => {
 
     await firestore.collection("usuarios").doc(id).delete();
 
-    const userCookie = req.cookies.user;
+    const userCookie = req.signedCookies.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_DELETE", {
@@ -234,7 +226,7 @@ router.patch("/:id", async (req, res) => {
 
     await firestore.collection("usuarios").doc(id).update(updates);
     
-    const userCookie = req.cookies.user;
+    const userCookie = req.signedCookies.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", {
@@ -270,8 +262,8 @@ router.patch("/:id/role", async (req, res) => {
 
     await firestore.collection("usuarios").doc(id).update({ role });
     
-    // --- LOG DE CAMBIO DE ROL RECUPERADO ---
-    const userCookie = req.cookies?.user;
+    // CORRECCIÓN: Se usa signedCookies
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { role: role });

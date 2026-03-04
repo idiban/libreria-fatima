@@ -1,10 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /books/{bookId} {
-      // ADVERTENCIA: Estas reglas permiten que CUALQUIERA lea y escriba.
-      // Para una app real, deberías usar autenticación.
-      allow read, write: if true;
+    match /{document=**} {
+      // Bloquea todo el tráfico público. Tu servidor backend seguirá teniendo acceso total.
+      allow read, write: if false; 
     }
   }
 }

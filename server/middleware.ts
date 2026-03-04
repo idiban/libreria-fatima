@@ -1,17 +1,15 @@
-import type { Request, Response, NextFunction } from "express";
-
 export const checkAuth = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.cookies.user) {
+  if (!req.signedCookies.user) { // <-- Cambiado a signedCookies
     return res.status(401).json({ error: "No autenticado" });
   }
   next();
 };
 
 export const checkRole = (roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
-  if (!req.cookies.user) {
+  if (!req.signedCookies.user) { // <-- Cambiado a signedCookies
     return res.status(401).json({ error: "No autenticado" });
   }
-  const user = JSON.parse(req.cookies.user);
+  const user = JSON.parse(req.signedCookies.user);
   if (!roles.includes(user.role)) {
     return res.status(403).json({ error: "Acceso denegado" });
   }
@@ -19,13 +17,14 @@ export const checkRole = (roles: string[]) => (req: Request, res: Response, next
 };
 
 export const sessionMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  const userCookie = req.cookies.user;
+  const userCookie = req.signedCookies.user; // <-- Cambiado a signedCookies
   if (userCookie) {
     res.cookie("user", userCookie, { 
       httpOnly: true, 
-      sameSite: 'strict', // CAMBIADO PARA MAYOR ESTABILIDAD
+      sameSite: 'strict', 
       secure: true,
-      maxAge: 3600000 // 1 hour
+      signed: true, // <-- NUEVO: Indica que se debe firmar
+      maxAge: 3600000 
     });
   }
   next();
