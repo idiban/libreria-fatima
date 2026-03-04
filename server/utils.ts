@@ -1,4 +1,3 @@
-
 import { getFirestore, admin } from "./firebase.ts";
 import crypto from "crypto";
 
@@ -58,5 +57,7 @@ export const uploadImageToStorage = async (base64String: string, folder: string)
     },
   });
 
-  return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(file.name)}?alt=media&token=${uuid}`;
+  // CORRECCIÓN DEFINITIVA: Devolvemos solo la ruta local (ej. "portadas/img_123.jpeg")
+  // Esto mantiene la base de datos limpia y fuerza que la imagen pase por el puente interno.
+  return filename;
 };

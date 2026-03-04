@@ -15,12 +15,13 @@ router.get("/", async (req, res) => {
     const books = await Promise.all(snapshot.docs.map(async (doc) => {
       const data = doc.data();
 
-      // Mantenemos la URL estática: Arregla el problema de Shift+F5 en producción.
+      // CORRECCIÓN: Apuntamos la URL al puente interno de tu backend para evadir CORS y Proxies
       const getRealUrl = (path: string) => {
         if (!path) return path;
-        if (path.startsWith('http')) return path; // Por si la DB ya tiene URLs completas guardadas
-        const encodedPath = encodeURIComponent(path);
-        return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media`;
+        if (path.startsWith('http')) return path; 
+        
+        // Convertimos "portadas/imagen.jpg" a una ruta local segura
+        return `/api/books/media/${path}`;
       };
 
       return { 
@@ -196,6 +197,34 @@ router.delete("/:id", async (req, res) => {
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// NUEVA RUTA: PUENTE DE IMÁGENES
+// Evade bloqueos de antivirus, CORS y proxies corporativos sirviendo la imagen como si fuera local
+router.get("/media/*", async (req, res) => {
+  try {
+    const bucket = admin.storage().bucket();
+    
+    // Extraemos la ruta del archivo que el frontend está pidiendo (ej: "portadas/foto.jpg")
+    const filePath = req.params[0];
+    if (!filePath) return res.status(400).send("Ruta inválida");
+
+    const file = bucket.file(filePath);
+    const [exists] = await file.exists();
+
+    if (!exists) return res.status(404).send("Imagen no encontrada");
+
+    // Obtenemos el tipo de imagen original y forzamos una caché súper agresiva (1 año)
+    const [metadata] = await file.getMetadata();
+    res.setHeader("Content-Type", metadata.contentType || "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=31536000");
+
+    // Conectamos el bucket directamente con el navegador del usuario
+    file.createReadStream().pipe(res);
+  } catch (error) {
+    console.error("Error sirviendo imagen:", error);
+    res.status(500).send("Error interno");
   }
 });
 
