@@ -1,6 +1,6 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
-import { logActivity } from "../utils.ts";
+import { logActivity, uploadImageToStorage } from "../utils.ts";
 
 const router = express.Router();
 
@@ -37,6 +37,11 @@ router.post("/", async (req, res) => {
 
   try {
     const { title, author, price, stock, category, description, cover_url, contraportada_url } = req.body;
+    
+    // Convertimos las imágenes antes de guardar
+    const finalCoverUrl = await uploadImageToStorage(cover_url, 'portadas');
+    const finalContraportadaUrl = contraportada_url ? await uploadImageToStorage(contraportada_url, 'contraportadas') : null;
+
     const docRef = await firestore.collection("libros").add({
       titulo: title,
       autor: author,
@@ -44,15 +49,15 @@ router.post("/", async (req, res) => {
       stock: stock,
       categoria: category || "",
       descripcion: description || "",
-      portada_url: cover_url,
-      contraportada_url: contraportada_url || null,
+      portada_url: finalCoverUrl,
+      contraportada_url: finalContraportadaUrl,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    
     const newDoc = await docRef.get();
     const data = newDoc.data();
     
-    // --- NUEVO: LOG DE CREACIÓN DE LIBRO ---
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
       await logActivity(user.id, user.username, "BOOK_CREATE", { title: title, price: price });
@@ -79,8 +84,14 @@ router.patch("/:id", async (req, res) => {
     if (updates.stock !== undefined) firestoreUpdates.stock = updates.stock;
     if (updates.category !== undefined) firestoreUpdates.categoria = updates.category;
     if (updates.description !== undefined) firestoreUpdates.descripcion = updates.description;
-    if (updates.cover_url !== undefined) firestoreUpdates.portada_url = updates.cover_url;
-    if (updates.contraportada_url !== undefined) firestoreUpdates.contraportada_url = updates.contraportada_url;
+    
+    // MAGIA AL EDITAR: Solo sube foto nueva si el usuario cambió la imagen
+    if (updates.cover_url !== undefined) {
+      firestoreUpdates.portada_url = await uploadImageToStorage(updates.cover_url, 'portadas');
+    }
+    if (updates.contraportada_url !== undefined) {
+      firestoreUpdates.contraportada_url = await uploadImageToStorage(updates.contraportada_url, 'contraportadas');
+    }
 
     await firestore.collection("libros").doc(id).update(firestoreUpdates);
     
@@ -88,7 +99,7 @@ router.patch("/:id", async (req, res) => {
     if (updates.stock !== undefined) {
       const bookDoc = await firestore.collection("libros").doc(id).get();
       const bookData = bookDoc.data();
-      const userCookie = req.signedCookies.user;
+      const userCookie = req.signedCookies?.user; // CORRECCIÓN: signedCookies
       if (userCookie) {
         const user = JSON.parse(userCookie);
         await logActivity(user.id, user.username, "STOCK_UPDATE", {
@@ -121,7 +132,7 @@ router.delete("/:id", async (req, res) => {
     await firestore.collection("libros").doc(id).delete();
 
     // --- NUEVO: LOG DE ELIMINACIÓN DE LIBRO ---
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user; // CORRECCIÓN: signedCookies
     if (userCookie && bookTitle) {
       const user = JSON.parse(userCookie);
       await logActivity(user.id, user.username, "BOOK_DELETE", { title: bookTitle });

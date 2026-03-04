@@ -4,7 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 
-import { sessionMiddleware } from "./server/middleware.ts";
+// Añade checkAuth a tu importación de middleware:
+import { sessionMiddleware, checkAuth } from "./server/middleware.ts"; 
+
 import booksRouter from "./server/routes/books.ts";
 import salesRouter from "./server/routes/sales.ts";
 import clientsRouter from "./server/routes/clients.ts";
@@ -12,7 +14,7 @@ import debtsRouter from "./server/routes/debts.ts";
 import usersRouter from "./server/routes/users.ts";
 import authRouter from "./server/routes/auth.ts";
 import statsRouter from "./server/routes/stats.ts";
-import logsRouter from "./server/routes/logs.ts"; // <-- NUEVO
+import logsRouter from "./server/routes/logs.ts";
 import aiRoutes from './server/routes/ai.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,21 +26,25 @@ async function startServer() {
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
-  app.use(cookieParser("secreto_libreria_fatima_2024")); // Puedes usar process.env.COOKIE_SECRET
+  // Recuerda que aquí pusimos el secreto de la cookie:
+  app.use(cookieParser("secreto_libreria_fatima_2024")); 
 
-  // Middleware to extend session on activity
   app.use(sessionMiddleware);
 
-  // API Routes
+  // --- ORDEN DE RUTAS CORREGIDO Y PROTEGIDO ---
+  
+  // 1. Auth no lleva checkAuth porque el usuario necesita poder hacer login
+  app.use("/api", authRouter);         
+
+  // 2. A todas las demás, les ponemos el candado checkAuth en la puerta principal:
   app.use("/api/books", booksRouter);
-  app.use("/api/sales", salesRouter);
-  app.use("/api/clients", clientsRouter);
-  app.use("/api/debts", debtsRouter);
-  app.use("/api/users", usersRouter);
-  app.use("/api", authRouter);         // <-- Restauramos el login
-  app.use("/api/stats", statsRouter);  // <-- Dejamos las stats perfectas
-  app.use("/api/logs", logsRouter); // <-- NUEVO
-  app.use('/api/ai', aiRoutes);
+  app.use("/api/sales", checkAuth, salesRouter);
+  app.use("/api/clients", checkAuth, clientsRouter);
+  app.use("/api/debts", checkAuth, debtsRouter);
+  app.use("/api/users", checkAuth, usersRouter);
+  app.use("/api/stats", checkAuth, statsRouter);
+  app.use("/api/logs", checkAuth, logsRouter);
+  app.use('/api/ai', checkAuth, aiRoutes);
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -3,7 +3,25 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 const router = express.Router();
 
-// Ruta para Refinar Imagen (Detecta las 4 esquinas para transformar la perspectiva)
+// --- FUNCIÓN PARA AGREGAR EL MARGEN (LO NUEVO) ---
+const expandPoints = (points: any, margin: number = 0.04) => {
+  const cx = (points.top_left.x + points.top_right.x + points.bottom_right.x + points.bottom_left.x) / 4;
+  const cy = (points.top_left.y + points.top_right.y + points.bottom_right.y + points.bottom_left.y) / 4;
+
+  const expand = (p: { x: number; y: number }) => ({
+    x: Math.round(Math.max(0, Math.min(1000, cx + (p.x - cx) * (1 + margin)))),
+    y: Math.round(Math.max(0, Math.min(1000, cy + (p.y - cy) * (1 + margin))))
+  });
+
+  return {
+    top_left: expand(points.top_left),
+    top_right: expand(points.top_right),
+    bottom_right: expand(points.bottom_right),
+    bottom_left: expand(points.bottom_left)
+  };
+};
+
+// Ruta para Refinar Imagen
 router.post("/refine-image", async (req, res) => {
   const rawKey = process.env.GEMINI_KEY_FINAL || "";
   const apiKey = rawKey.replace(/['"]/g, '').trim();
@@ -13,11 +31,8 @@ router.post("/refine-image", async (req, res) => {
   try {
     const { base64, side } = req.body;
     const ai = new GoogleGenAI({ apiKey });
-
-    // Extraemos solo el buffer de la base64 original
     const base64Data = base64.split(',')[1];
 
-    // PROMPT CORREGIDO: Se explica matemáticamente el plano 0-1000 y se fuerza a buscar el borde físico real.
     const promptText = `Actúa como un sistema experto de visión artificial. Analiza la imagen y detecta los 4 vértices del CONTORNO EXTERIOR FÍSICO del libro entero (${side === 'front' ? 'portada' : 'contraportada'}). 
     REGLAS CRÍTICAS: 
     1. Debes enmarcar TODO EL LIBRO de extremo a extremo físico. El borde es el límite donde termina el material del libro y empieza el fondo (mesas, baldosas).
@@ -51,9 +66,11 @@ router.post("/refine-image", async (req, res) => {
       }
     });
 
-    const points = JSON.parse(response.text || "{}");
+    const rawPoints = JSON.parse(response.text || "{}");
+    
+    // APLICACIÓN DEL MARGEN (4%)
+    const points = expandPoints(rawPoints, 0.04);
 
-    // Devolvemos solo los puntos. La magia del estiramiento visual la hará el frontend.
     res.json({ points });
   } catch (error: any) {
     console.error("AI Refine Error:", error);

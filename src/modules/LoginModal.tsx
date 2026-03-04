@@ -25,7 +25,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           const res = await fetch('/api/users');
           const data = await res.json();
           if (Array.isArray(data)) {
-            setAllUsers(data);
+            // FILTRO 1: Descartamos al owner desde el momento en que llegan los datos
+            setAllUsers(data.filter((u: any) => u.role !== 'owner'));
           }
         } catch (e) {
           console.error("Error cargando usuarios:", e);
@@ -53,7 +54,9 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     if (name === 'username' && value.length > 0) {
       const normalizedInput = normalizeText(value);
       const filtered = allUsers.filter(u => 
-        u.username && normalizeText(u.username).includes(normalizedInput)
+        u.username && 
+        u.role !== 'owner' && // FILTRO 2: Doble seguridad para no sugerir al owner
+        normalizeText(u.username).includes(normalizedInput)
       ).slice(0, 3); // Limitar a 3 sugerencias
       
       setSuggestions(filtered);
