@@ -93,29 +93,69 @@ export default function App() {
   // Session Timer
   const [timeLeft, setTimeLeft] = useState(3600); // 1 hora
 
+  // SOLUCIÓN: Establecer la fecha de expiración real en localStorage
   const resetTimer = useCallback(() => {
-    setTimeLeft(3600); // 1 hora
+    const expireTime = Date.now() + 3600000; // Hora actual + 1 hora
+    localStorage.setItem('sessionExpire', expireTime.toString());
+    setTimeLeft(3600); 
   }, []);
 
+  // SOLUCIÓN: Validar la sesión basada en el reloj del sistema, no en el setInterval
   useEffect(() => {
     if (!currentUser) return;
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          handleLogout();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Al iniciar sesión (o recargar), si no hay fecha de expiración, la creamos
+    if (!localStorage.getItem('sessionExpire')) {
+      resetTimer();
+    }
 
+    const checkExpiration = () => {
+      const expireTimeStr = localStorage.getItem('sessionExpire');
+      if (expireTimeStr) {
+        const expireTime = parseInt(expireTimeStr, 10);
+        const now = Date.now();
+        const secondsLeft = Math.floor((expireTime - now) / 1000);
+
+        if (secondsLeft <= 0) {
+          handleLogout();
+        } else {
+          setTimeLeft(secondsLeft);
+        }
+      }
+    };
+
+    const timer = setInterval(checkExpiration, 1000);
+
+    // Escuchar eventos para renovar la hora de expiración
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(event => window.addEventListener(event, resetTimer));
+    const handleActivity = () => {
+      // Para no saturar el localStorage, solo actualizamos si quedan menos de 59 minutos
+      const expireTimeStr = localStorage.getItem('sessionExpire');
+      if (expireTimeStr) {
+        const expireTime = parseInt(expireTimeStr, 10);
+        const secondsLeft = Math.floor((expireTime - Date.now()) / 1000);
+        if (secondsLeft < 3540) { 
+          resetTimer();
+        }
+      } else {
+        resetTimer();
+      }
+    };
+
+    events.forEach(event => window.addEventListener(event, handleActivity));
+
+    // Revisar inmediatamente en caso de que volvamos de una hibernación (visibilitychange)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkExpiration();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(timer);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
+      events.forEach(event => window.removeEventListener(event, handleActivity));
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [currentUser, resetTimer]);
 
@@ -152,11 +192,12 @@ export default function App() {
       if (response.ok && contentType && contentType.indexOf('application/json') !== -1) {
         const user = await response.json();
         setCurrentUser(user);
+        resetTimer(); // Al validar que estamos logueados, iniciamos el reloj
       } else {
         setCurrentUser(null);
       }
     } catch (e) {}
-  }, []);
+  }, [resetTimer]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -200,6 +241,7 @@ export default function App() {
     await fetch('/api/logout', { method: 'POST' });
     setCurrentUser(null);
     setActiveView('catalog');
+    localStorage.removeItem('sessionExpire'); // Limpiar fecha al cerrar sesión
   };
 
   const handleUpdateStock = async (bookId: string, newStock: number) => {

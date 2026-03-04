@@ -42,9 +42,13 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
-  const filteredClients = clients.filter(client => 
-    client.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Mejora 2: Ordenar de mayor a menor deuda (.sort)
+  const filteredClients = clients
+    .filter(client => client.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => b.totalDebt - a.totalDebt);
+
+  // Mejora 1: Cálculo del total de deudas
+  const totalDebtSum = clients.reduce((acc, client) => acc + client.totalDebt, 0);
 
   return (
     <div className="space-y-8">
@@ -52,6 +56,13 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
         <div>
           <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Deudores</h2>
           <p className="text-gray-500 font-medium">Gestiona los pagos pendientes de tus clientes.</p>
+          
+          {/* Mejora 1: Renderizado condicional del total de deudas */}
+          {totalDebtSum > 0 && (
+            <p className="text-red-500 font-bold text-xl mt-3 flex items-center gap-1">
+              Total deudas: ${formatPrice(totalDebtSum)}
+            </p>
+          )}
         </div>
         
         <div className="relative">

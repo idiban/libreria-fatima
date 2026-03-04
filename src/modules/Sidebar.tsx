@@ -166,16 +166,9 @@ export default function Sidebar({
             {(!isCollapsed || isMobileOpen) && <span className="text-sm font-bold">Cerrar Sesión</span>}
           </div>
 
-          {/* Temporizador exclusivo para el owner */}
-          {(!isCollapsed || isMobileOpen) && currentUser?.role === 'owner' && timeLeft !== undefined && (
-            <span className="text-[11px] font-black font-mono bg-red-100 text-red-600 px-2 py-1 rounded-lg">
-              {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-            </span>
-          )}
-
           {isCollapsed && !isMobileOpen && (
             <div className="absolute left-full ml-4 px-3 py-2 bg-[#1A1A1A] text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-              Cerrar Sesión {currentUser?.role === 'owner' && timeLeft !== undefined && `- ${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')}`}
+              Cerrar Sesión
             </div>
           )}
         </button>

@@ -23,7 +23,7 @@ export const sessionMiddleware = (req: Request, res: Response, next: NextFunctio
   if (userCookie) {
     res.cookie("user", userCookie, { 
       httpOnly: true, 
-      sameSite: 'none', 
+      sameSite: 'strict', // CAMBIADO PARA MAYOR ESTABILIDAD
       secure: true,
       maxAge: 3600000 // 1 hour
     });

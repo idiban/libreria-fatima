@@ -4,6 +4,12 @@ import { motion } from 'motion/react';
 import { BookItem } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal'; 
 
+// Función de ayuda para formatear precios con puntos (ej. 15.000)
+const formatPrice = (price?: number) => {
+  if (price === undefined || price === null) return '0';
+  return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+};
+
 interface BookManagerProps {
   books: BookItem[];
   onEditBook: (book: BookItem) => void;
@@ -11,7 +17,8 @@ interface BookManagerProps {
   onBookDeleted: () => void;
 }
 
-type SortColumn = 'title' | 'category' | 'stock';
+// Agregamos 'price' a las columnas ordenables
+type SortColumn = 'title' | 'category' | 'price' | 'stock';
 type SortDirection = 'asc' | 'desc';
 
 export default function BookManager({ books, onEditBook, onAddBook, onBookDeleted }: BookManagerProps) {
@@ -56,6 +63,9 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
       const catA = a.category || '';
       const catB = b.category || '';
       compareResult = catA.localeCompare(catB);
+    } else if (sortColumn === 'price') {
+      // Lógica de ordenamiento para precio
+      compareResult = (a.price || 0) - (b.price || 0);
     } else if (sortColumn === 'stock') {
       compareResult = a.stock - b.stock;
     }
@@ -141,6 +151,15 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                     Categoría {renderSortIcon('category')}
                   </div>
                 </th>
+                {/* Nueva columna de Precio */}
+                <th 
+                  className="px-8 py-6 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                  onClick={() => handleSort('price')}
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    Precio {renderSortIcon('price')}
+                  </div>
+                </th>
                 <th 
                   className="px-8 py-6 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
                   onClick={() => handleSort('stock')}
@@ -190,11 +209,20 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t border-[var(--color-warm-surface)]">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</span>
-                <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
-                  {book.stock}
-                </span>
+              {/* Contenedor para Precio y Stock en móvil */}
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Precio</span>
+                  <span className="text-lg font-bold text-gray-700">
+                    ${formatPrice(book.price)}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</span>
+                  <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
+                    {book.stock}
+                  </span>
+                </div>
               </div>
               
               <div className="flex items-center gap-2">
@@ -260,6 +288,12 @@ function BookRow({ book, onEditBook, onDeleteRequest }: BookRowProps) {
         <span className="px-3 py-1 bg-[var(--color-warm-surface)] rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">
           {book.category || 'Sin categoría'}
         </span>
+      </td>
+      {/* Celda del Precio en el BookRow */}
+      <td className="px-8 py-6 text-center">
+        <div className="text-md font-bold text-gray-600">
+          ${formatPrice(book.price)}
+        </div>
       </td>
       <td className="px-8 py-6 text-center">
         <div className={`text-lg font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
