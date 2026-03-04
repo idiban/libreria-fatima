@@ -9,9 +9,28 @@ router.get("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
   
   try {
+    const bucket = admin.storage().bucket(); // Acceso al storage
     const snapshot = await firestore.collection("libros").orderBy("titulo").get();
-    const books = snapshot.docs.map(doc => {
+    
+    // Usamos Promise.all para procesar todas las URLs firmadas en paralelo
+    const books = await Promise.all(snapshot.docs.map(async (doc) => {
       const data = doc.data();
+
+      // Función auxiliar para convertir path en URL real
+      const getRealUrl = async (path: string) => {
+        if (!path || path.startsWith('http')) return path;
+        try {
+          const [url] = await bucket.file(path).getSignedUrl({
+            action: 'read',
+            expires: '01-01-2100', // Fecha de expiración lejana
+          });
+          return url;
+        } catch (e) {
+          console.error(`Error al generar URL para ${path}:`, e);
+          return "";
+        }
+      };
+
       return { 
         id: doc.id, 
         title: data.titulo || "",
@@ -20,11 +39,13 @@ router.get("/", async (req, res) => {
         stock: data.stock || 0,
         category: data.categoria || "",
         description: data.descripcion || "",
-        cover_url: data.portada_url || "",
-        contraportada_url: data.contraportada_url || "",
+        // Convertimos los paths en URLs completas antes de enviarlas al frontend
+        cover_url: await getRealUrl(data.portada_url),
+        contraportada_url: await getRealUrl(data.contraportada_url),
         createdAt: data.createdAt
       };
-    });
+    }));
+
     res.json(books);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -99,7 +120,7 @@ router.patch("/:id", async (req, res) => {
     if (updates.stock !== undefined) {
       const bookDoc = await firestore.collection("libros").doc(id).get();
       const bookData = bookDoc.data();
-      const userCookie = req.signedCookies?.user; // CORRECCIÓN: signedCookies
+      const userCookie = req.signedCookies?.user; 
       if (userCookie) {
         const user = JSON.parse(userCookie);
         await logActivity(user.id, user.username, "STOCK_UPDATE", {
@@ -125,14 +146,12 @@ router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     
-    // --- NUEVO: OBTENER NOMBRE ANTES DE BORRAR PARA EL LOG ---
     const bookDoc = await firestore.collection("libros").doc(id).get();
     const bookTitle = bookDoc.data()?.titulo;
 
     await firestore.collection("libros").doc(id).delete();
 
-    // --- NUEVO: LOG DE ELIMINACIÓN DE LIBRO ---
-    const userCookie = req.signedCookies?.user; // CORRECCIÓN: signedCookies
+    const userCookie = req.signedCookies?.user; 
     if (userCookie && bookTitle) {
       const user = JSON.parse(userCookie);
       await logActivity(user.id, user.username, "BOOK_DELETE", { title: bookTitle });
