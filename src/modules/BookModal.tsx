@@ -14,81 +14,6 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem } from '../types';
 
-// --- NUEVA MAGIA MATEMÁTICA: TRANSFORMA LA PERSPECTIVA DE LAS 4 ESQUINAS (Efecto CamScanner) ---
-const warpPerspective = (base64: string, points: any): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    if (!points || !points.top_left || !points.top_right || !points.bottom_right || !points.bottom_left) {
-      return resolve(base64); // Fallback por si la IA falla
-    }
-
-    const img = new Image();
-    img.onload = () => {
-      // 1. Convertimos las coordenadas normalizadas (0-1000) a píxeles reales de la foto
-      const sTL = { x: (points.top_left.x / 1000) * img.width, y: (points.top_left.y / 1000) * img.height };
-      const sTR = { x: (points.top_right.x / 1000) * img.width, y: (points.top_right.y / 1000) * img.height };
-      const sBR = { x: (points.bottom_right.x / 1000) * img.width, y: (points.bottom_right.y / 1000) * img.height };
-      const sBL = { x: (points.bottom_left.x / 1000) * img.width, y: (points.bottom_left.y / 1000) * img.height };
-
-      // 2. Calculamos el ancho y alto del nuevo rectángulo estirado
-      const width1 = Math.hypot(sTR.x - sTL.x, sTR.y - sTL.y);
-      const width2 = Math.hypot(sBR.x - sBL.x, sBR.y - sBL.y);
-      const destWidth = Math.max(width1, width2);
-
-      const height1 = Math.hypot(sBL.x - sTL.x, sBL.y - sTL.y);
-      const height2 = Math.hypot(sBR.x - sTR.x, sBR.y - sTR.y);
-      const destHeight = Math.max(height1, height2);
-
-      // Creamos un canvas con la medida final rectangular perfecta
-      const canvas = document.createElement('canvas');
-      canvas.width = destWidth;
-      canvas.height = destHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(base64);
-
-      // 3. Destinos del rectángulo final perfecto (0,0 hasta ancho,alto)
-      const dTL = { x: 0, y: 0 };
-      const dTR = { x: destWidth, y: 0 };
-      const dBR = { x: destWidth, y: destHeight };
-      const dBL = { x: 0, y: destHeight };
-
-      // Matemática afín para mapear los triángulos
-      const drawTriangle = (s0: any, s1: any, s2: any, d0: any, d1: any, d2: any) => {
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(d0.x, d0.y);
-        ctx.lineTo(d1.x, d1.y);
-        ctx.lineTo(d2.x, d2.y);
-        ctx.closePath();
-        ctx.clip();
-
-        const delta = s0.x * (s1.y - s2.y) - s1.x * (s0.y - s2.y) + s2.x * (s0.y - s1.y);
-        if (delta !== 0) {
-          const a = (d0.x * (s1.y - s2.y) - d1.x * (s0.y - s2.y) + d2.x * (s0.y - s1.y)) / delta;
-          const b = (d0.y * (s1.y - s2.y) - d1.y * (s0.y - s2.y) + d2.y * (s0.y - s1.y)) / delta;
-          const c = -(d0.x * (s1.x - s2.x) - d1.x * (s0.x - s2.x) + d2.x * (s0.x - s1.x)) / delta;
-          const d = -(d0.y * (s1.x - s2.x) - d1.y * (s0.x - s2.x) + d2.y * (s0.x - s1.x)) / delta;
-          const e = (d0.x * (s1.x * s2.y - s2.x * s1.y) - d1.x * (s0.x * s2.y - s2.x * s0.y) + d2.x * (s0.x * s1.y - s1.x * s0.y)) / delta;
-          const f = (d0.y * (s1.x * s2.y - s2.x * s1.y) - d1.y * (s0.x * s2.y - s2.x * s0.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / delta;
-
-          ctx.transform(a, b, c, d, e, f);
-          ctx.drawImage(img, 0, 0);
-        }
-        ctx.restore();
-      };
-
-      // Partimos el libro en 2 triángulos y los aplanamos
-      drawTriangle(sTL, sTR, sBL, dTL, dTR, dBL);
-      drawTriangle(sBL, sTR, sBR, dBL, dTR, dBR);
-
-      // MEJORA DE CALIDAD: Generamos el jpeg al 95% de calidad (antes estaba en 0.9)
-      resolve(canvas.toDataURL('image/jpeg', 0.95));
-    };
-    img.onerror = () => reject(new Error("Error al cargar imagen para perspectiva"));
-    img.src = base64;
-  });
-};
-// --------------------------------------------------------------------------------
-
 interface BookModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -109,8 +34,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     contraportada_url: ''
   });
   const [isScanningFields, setIsScanningFields] = useState(false);
-  const [isRefiningFront, setIsRefiningFront] = useState(false);
-  const [isRefiningBack, setIsRefiningBack] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [showAiReminder, setShowAiReminder] = useState(false);
@@ -187,41 +110,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     });
   };
 
-  const refineImage = async (base64: string, side: 'front' | 'back') => {
-    if (side === 'front') setIsRefiningFront(true);
-    else setIsRefiningBack(true);
-
-    try {
-      const response = await fetch('/api/ai/refine-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, side })
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Error del servidor');
-      }
-
-      const data = await response.json();
-      
-      // Aplicamos el estiramiento 3D usando los 4 puntos devueltos por la IA
-      const finalImageBase64 = await warpPerspective(base64, data.points);
-      
-      if (side === 'front') {
-        setFormData(prev => ({ ...prev, cover_url: finalImageBase64 }));
-      } else {
-        setFormData(prev => ({ ...prev, contraportada_url: finalImageBase64 }));
-      }
-    } catch (error: any) {
-      console.error('Error refining image:', error);
-      alert(error.message || 'Error al recortar la imagen con IA.');
-    } finally {
-      if (side === 'front') setIsRefiningFront(false);
-      else setIsRefiningBack(false);
-    }
-  };
-
   const scanWithAI = async () => {
     if (!formData.cover_url && !formData.contraportada_url) return;
     setIsScanningFields(true);
@@ -271,10 +159,13 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = async () => {
+      reader.onloadend = () => {
         const base64 = reader.result as string;
-        // Al cargarse la imagen, llamamos INMEDIATAMENTE a la IA para el recorte
-        await refineImage(base64, side);
+        if (side === 'front') {
+          setFormData(prev => ({ ...prev, cover_url: base64 }));
+        } else {
+          setFormData(prev => ({ ...prev, contraportada_url: base64 }));
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -443,12 +334,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <div className="flex flex-col gap-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.cover_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
-                            {isRefiningFront && (
-                              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
-                                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center px-2">Ajustando imagen...</p>
-                              </div>
-                            )}
                             {formData.cover_url ? (
                               <img src={formData.cover_url} alt="" className="w-full h-full object-contain bg-black/5" />
                             ) : (
@@ -495,12 +380,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <div className="flex flex-col gap-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.contraportada_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
-                            {isRefiningBack && (
-                              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-2 z-20">
-                                <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin" />
-                                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-center px-2">Ajustando imagen...</p>
-                              </div>
-                            )}
                             {formData.contraportada_url ? (
                               <img src={formData.contraportada_url} alt="" className="w-full h-full object-contain bg-black/5" />
                             ) : (

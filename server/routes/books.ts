@@ -94,7 +94,6 @@ router.patch("/:id", async (req, res) => {
     const bookDoc = await firestore.collection("libros").doc(id).get();
     const oldData = bookDoc.data();
 
-    // NUEVA FUNCIÓN DE BORRADO: Capaz de limpiar las URLs corruptas de pruebas anteriores
     const deleteFile = async (pathOrUrl: string) => {
       if (!pathOrUrl) return;
       let pathToDelete = pathOrUrl;
@@ -104,7 +103,7 @@ router.patch("/:id", async (req, res) => {
         if (match && match[1]) {
           pathToDelete = decodeURIComponent(match[1]);
         } else {
-          return; // No es una URL de Firebase válida, no hacemos nada
+          return;
         }
       }
 
@@ -118,14 +117,28 @@ router.patch("/:id", async (req, res) => {
     if (updates.category !== undefined) firestoreUpdates.categoria = updates.category;
     if (updates.description !== undefined) firestoreUpdates.descripcion = updates.description;
     
-    // CORRECCIÓN VITAL: Solo procesamos y subimos si NO es una URL http (es decir, si es realmente una imagen nueva)
-    if (updates.cover_url !== undefined && !updates.cover_url.startsWith('http')) {
-      if (oldData?.portada_url) await deleteFile(oldData.portada_url);
-      firestoreUpdates.portada_url = await uploadImageToStorage(updates.cover_url, 'portadas');
+    // LÓGICA CORREGIDA PARA PORTADA
+    if (updates.cover_url !== undefined) {
+      if (updates.cover_url.startsWith('data:')) {
+        // Si viene un base64, borramos la vieja y subimos la nueva
+        if (oldData?.portada_url) await deleteFile(oldData.portada_url);
+        firestoreUpdates.portada_url = await uploadImageToStorage(updates.cover_url, 'portadas');
+      } else if (updates.cover_url === '') {
+        // Si viene vacío, borramos la imagen del bucket y limpiamos el campo en la base de datos
+        if (oldData?.portada_url) await deleteFile(oldData.portada_url);
+        firestoreUpdates.portada_url = '';
+      }
     }
-    if (updates.contraportada_url !== undefined && !updates.contraportada_url.startsWith('http')) {
-      if (oldData?.contraportada_url) await deleteFile(oldData.contraportada_url);
-      firestoreUpdates.contraportada_url = await uploadImageToStorage(updates.contraportada_url, 'contraportadas');
+
+    // LÓGICA CORREGIDA PARA CONTRAPORTADA
+    if (updates.contraportada_url !== undefined) {
+      if (updates.contraportada_url.startsWith('data:')) {
+        if (oldData?.contraportada_url) await deleteFile(oldData.contraportada_url);
+        firestoreUpdates.contraportada_url = await uploadImageToStorage(updates.contraportada_url, 'contraportadas');
+      } else if (updates.contraportada_url === '') {
+        if (oldData?.contraportada_url) await deleteFile(oldData.contraportada_url);
+        firestoreUpdates.contraportada_url = '';
+      }
     }
 
     await firestore.collection("libros").doc(id).update(firestoreUpdates);
