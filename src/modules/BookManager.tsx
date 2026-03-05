@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Package, Plus, Search, Edit2, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem } from '../types';
@@ -104,7 +104,7 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
     <div className="space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Gestión de Libros</h2>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Gestión de libros</h2>
           <p className="text-sm sm:text-base text-gray-500 font-medium">Administra y organiza los libros de tu librería.</p>
         </div>
         
@@ -217,11 +217,9 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                     ${formatPrice(book.price)}
                   </span>
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stock</span>
-                  <span className={`text-xl font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
-                    {book.stock}
-                  </span>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Stock</span>
+                  <InlineStockInput book={book} textClass="text-xl text-center" />
                 </div>
               </div>
               
@@ -254,6 +252,56 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
         isLoading={isDeleting}
       />
     </div>
+  );
+}
+
+// NUEVO: Componente para modificar el stock en vivo con onBlur
+function InlineStockInput({ book, textClass = "text-lg" }: { book: BookItem, textClass?: string }) {
+  const [stock, setStock] = useState<number | string>(book.stock);
+
+  useEffect(() => {
+    setStock(book.stock);
+  }, [book.stock]);
+
+  const handleSave = async () => {
+    const numStock = typeof stock === 'string' ? parseInt(stock, 10) : stock;
+    const validStock = isNaN(numStock) || numStock < 0 ? 0 : numStock;
+
+    if (validStock === book.stock) {
+      setStock(validStock); // Restablecer si el input quedó vacío o inválido
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock: validStock })
+      });
+      if (response.ok) {
+        // Esto le avisará a App.tsx que debe recargar los libros automáticamente
+        window.dispatchEvent(new Event('stockUpdated'));
+      } else {
+        setStock(book.stock); // Revertir si hubo error en backend
+      }
+    } catch (error) {
+      setStock(book.stock); // Revertir si hay error de red
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min="0"
+      value={stock}
+      onChange={(e) => setStock(e.target.value)}
+      onBlur={handleSave}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      title="Editar stock"
+      className={`w-14 px-1 py-0.5 bg-white border border-gray-300 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 shadow-sm rounded-lg outline-none transition-all text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-black ${textClass} ${
+        Number(stock) === 0 ? 'text-red-500' : Number(stock) <= 3 ? 'text-orange-500' : 'text-emerald-500'
+      }`}
+    />
   );
 }
 
@@ -296,21 +344,20 @@ function BookRow({ book, onEditBook, onDeleteRequest }: BookRowProps) {
         </div>
       </td>
       <td className="px-8 py-6 text-center">
-        <div className={`text-lg font-black ${book.stock === 0 ? 'text-red-500' : book.stock <= 3 ? 'text-orange-500' : 'text-emerald-500'}`}>
-          {book.stock}
-        </div>
+        {/* Aquí reemplazamos el texto estático por el componente que creamos */}
+        <InlineStockInput book={book} textClass="text-lg text-center mx-auto" />
       </td>
       <td className="px-8 py-6 text-right">
         <div className="flex items-center justify-end gap-2">
           <button 
             onClick={() => onEditBook(book)}
-            className="p-2 hover:bg-[var(--color-warm-surface)] rounded-xl text-gray-400 hover:text-[var(--color-primary)] transition-all"
+            className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 shadow-sm transition-all"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button 
             onClick={() => onDeleteRequest(book)}
-            className="p-2 hover:bg-[var(--color-warm-surface)] rounded-xl text-gray-400 hover:text-red-500 transition-all"
+            className="p-2.5 bg-red-50 border border-red-100 rounded-xl text-red-500 hover:bg-red-100 hover:border-red-200 shadow-sm transition-all"
           >
             <Trash2 className="w-4 h-4" />
           </button>

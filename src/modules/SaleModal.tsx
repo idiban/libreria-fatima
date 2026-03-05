@@ -645,7 +645,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                   <div className="space-y-4">
                     <div className="flex gap-3">
                       <div className="space-y-1.5 flex-[2]">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Monto a pagar</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Cantidad que va a pagar</label>
                         <div className="relative">
                           <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <input
@@ -666,7 +666,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                           }}
                           className="mt-1.5 w-full py-2 bg-[var(--color-primary)] text-white rounded-lg font-black text-[10px] uppercase tracking-widest shadow-md hover:scale-[1.02] active:scale-95 transition-all"
                         >
-                          Completar Monto
+                          Va a pagar todo
                         </button>
                       </div>
                       <div className="space-y-1.5 flex-1">
