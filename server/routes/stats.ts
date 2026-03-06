@@ -1,5 +1,5 @@
 import express from "express";
-import { getFirestore } from "../firebase.ts";
+import { getFirestore, admin } from "../firebase.ts";
 
 const router = express.Router();
 
@@ -11,34 +11,39 @@ router.get("/", async (req, res) => {
     const { timeframe } = req.query;
 
     // 1. Obtener todos los libros (para categorías y stock crítico)
+    // NOTA: Seguimos necesitando los libros para mapear categorías y stock crítico,
+    // pero limitamos el procesamiento.
     const booksSnap = await firestore.collection("libros").get();
     const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
     const bookMap = new Map(books.map(b => [b.id, b]));
 
-    // 2. Alerta de Stock Crítico (Libros con 3 o menos)
+    // 2. Alerta de Stock Crítico
     const criticalStock = books
       .filter(b => b.stock <= 3)
       .sort((a, b) => a.stock - b.stock)
       .slice(0, 5);
 
-    // 3. Obtener Clientes (para calcular deudas globales y mejores clientes)
-    const clientsSnap = await firestore.collection("clientes").get();
-    const clients = clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+    // 3. AGREGACIÓN: Obtener deudas y créditos totales sin leer cada documento
+    const clientsCol = firestore.collection("clientes");
+    const debtAggregation = await clientsCol.aggregate({
+      totalDebt: admin.firestore.AggregateField.sum('totalDebt'),
+      totalCredit: admin.firestore.AggregateField.sum('creditBalance'),
+      count: admin.firestore.AggregateField.count()
+    }).get();
     
-    let totalDebt = 0;
-    let totalCredit = 0;
-    clients.forEach(c => {
-      totalDebt += (c.totalDebt || 0);
-      totalCredit += (c.creditBalance || 0);
-    });
+    const { totalDebt, totalCredit, count: totalClients } = debtAggregation.data();
 
-    const topDebtors = [...clients]
-      .filter(c => (c.totalDebt || 0) > 0)
-      .sort((a, b) => (b.totalDebt || 0) - (a.totalDebt || 0))
-      .slice(0, 5);
+    const topDebtorsSnap = await clientsCol
+      .where('totalDebt', '>', 0)
+      .orderBy('totalDebt', 'desc')
+      .limit(5)
+      .get();
+    
+    const topDebtors = topDebtorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // 4. Filtrado por Fecha para Ventas
     let salesQuery: any = firestore.collection("ventas");
+    let revenueAggregationQuery: any = firestore.collection("ventas");
     
     if (timeframe && timeframe !== 'all') {
       const now = new Date();
@@ -52,11 +57,18 @@ router.get("/", async (req, res) => {
         startDate.setHours(0, 0, 0, 0);
       }
       salesQuery = salesQuery.where('timestamp', '>=', startDate);
+      revenueAggregationQuery = revenueAggregationQuery.where('timestamp', '>=', startDate);
     }
+
+    // AGREGACIÓN: Total de ingresos del periodo
+    const revenueAggregation = await revenueAggregationQuery.aggregate({
+      totalRevenue: admin.firestore.AggregateField.sum('total')
+    }).get();
+    
+    const { totalRevenue } = revenueAggregation.data();
 
     const salesSnap = await salesQuery.get();
     
-    let totalRevenue = 0;
     let totalSales = 0;
     const salesByDayMap = new Map<string, number>();
     const bookCountMap = new Map<string, { title: string, count: number }>();
@@ -65,7 +77,6 @@ router.get("/", async (req, res) => {
 
     salesSnap.docs.forEach((doc: any) => {
       const sale = doc.data();
-      totalRevenue += (sale.total || 0);
       
       // Agrupar ventas por día
       if (sale.timestamp) {
@@ -126,7 +137,7 @@ router.get("/", async (req, res) => {
     res.json({
       totalRevenue,
       totalSales,
-      totalClients: clients.length,
+      totalClients,
       totalDebt,
       totalCredit,
       salesByDay: sortedSalesByDay,

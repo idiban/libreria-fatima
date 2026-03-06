@@ -33,6 +33,14 @@ export default function App() {
   
   // Selection State
   const [selectedBook, setSelectedBook] = useState<BookItem | null>(null);
+  
+  // Global Data Cache
+  const [sales, setSales] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [hasFetchedSales, setHasFetchedSales] = useState(false);
+  const [hasFetchedClients, setHasFetchedClients] = useState(false);
+  const [hasFetchedLogs, setHasFetchedLogs] = useState(false);
 
   // Handle Browser Back Button for All Views
   useEffect(() => {
@@ -218,6 +226,42 @@ export default function App() {
     } catch (e) {}
   }, []);
 
+  const fetchSales = useCallback(async (force = false) => {
+    if (hasFetchedSales && !force) return;
+    try {
+      const res = await fetch('/api/sales');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setSales(data);
+        setHasFetchedSales(true);
+      }
+    } catch (e) {}
+  }, [hasFetchedSales]);
+
+  const fetchClients = useCallback(async (force = false) => {
+    if (hasFetchedClients && !force) return;
+    try {
+      const res = await fetch('/api/clients');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setClients(data.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+        setHasFetchedClients(true);
+      }
+    } catch (e) {}
+  }, [hasFetchedClients]);
+
+  const fetchLogs = useCallback(async (force = false) => {
+    if (hasFetchedLogs && !force) return;
+    try {
+      const res = await fetch('/api/logs');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setLogs(data);
+        setHasFetchedLogs(true);
+      }
+    } catch (e) {}
+  }, [hasFetchedLogs]);
+
   useEffect(() => {
     fetchBooks();
     checkAuth();
@@ -235,13 +279,23 @@ export default function App() {
 
   useEffect(() => {
     if (activeView === 'users') fetchUsers();
-  }, [activeView, fetchUsers]);
+    if (activeView === 'sales') fetchSales();
+    if (activeView === 'clients') fetchClients();
+    if (activeView === 'logs') fetchLogs();
+  }, [activeView, fetchUsers, fetchSales, fetchClients, fetchLogs]);
 
   const handleLogout = async () => {
     await fetch('/api/logout', { method: 'POST' });
     setCurrentUser(null);
     setActiveView('catalog');
     localStorage.removeItem('sessionExpire'); // Limpiar fecha al cerrar sesión
+    // Reset cache
+    setSales([]);
+    setClients([]);
+    setLogs([]);
+    setHasFetchedSales(false);
+    setHasFetchedClients(false);
+    setHasFetchedLogs(false);
   };
 
   const handleUpdateStock = async (bookId: string, newStock: number) => {
@@ -318,11 +372,11 @@ export default function App() {
       case 'stats':
         return <StatsDashboard />;
       case 'logs':
-        return <ActivityLogs />;
+        return <ActivityLogs logs={logs} loading={!hasFetchedLogs} onRefresh={() => fetchLogs(true)} />;
       case 'sales':
-        return <SalesHistory currentUser={currentUser!} />;
+        return <SalesHistory currentUser={currentUser!} sales={sales} loading={!hasFetchedSales} onRefresh={() => fetchSales(true)} />;
       case 'clients':
-        return <ClientsList />;
+        return <ClientsList clients={clients} loading={!hasFetchedClients} onRefresh={() => fetchClients(true)} />;
       case 'debtors':
         return <DebtorsList books={books} />;
       default:
@@ -409,6 +463,7 @@ export default function App() {
         editingBook={editingBook}
         onSave={fetchBooks}
         books={books}
+        currentUser={currentUser} // <-- AGREGA ESTA LÍNEA
       />
 
       {currentUser && (
@@ -420,7 +475,11 @@ export default function App() {
           }}
           initialBook={saleBook}
           currentUser={currentUser}
-          onSaleSuccess={fetchBooks}
+          onSaleSuccess={() => {
+            fetchBooks();
+            fetchSales(true);
+            fetchClients(true);
+          }}
         />
       )}
 

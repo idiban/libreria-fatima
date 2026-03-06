@@ -2,30 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Search, Clock, History } from 'lucide-react';
 import { ActivityLog } from '../types';
 
-export default function ActivityLogs() {
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+interface ActivityLogsProps {
+  logs: ActivityLog[];
+  loading: boolean;
+  onRefresh: () => void;
+}
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const res = await fetch('/api/logs');
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setLogs(data);
-        } else {
-          console.error("Failed to fetch logs:", data);
-          setLogs([]);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLogs();
-  }, []);
+export default function ActivityLogs({ logs, loading, onRefresh }: ActivityLogsProps) {
+  const [searchTerm, setSearchTerm] = useState('');
 
   // TRADUCTOR DE ACCIONES A ESPAÑOL AMIGABLE
   const translateAction = (action: string) => {

@@ -17,25 +17,25 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const [currentDebt, setCurrentDebt] = useState(client?.totalDebt || 0);
-  const [currentCredit, setCurrentCredit] = useState(client?.creditBalance || 0);
-
   const [itemToDelete, setItemToDelete] = useState<{ id: string, type: string } | null>(null);
   const [isDeletingItem, setIsDeletingItem] = useState(false);
 
+  // Función encargada de traer la realidad directamente desde la Base de Datos
+  const loadHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/clients/${client.id}/history`);
+      const data = await res.json();
+      setHistory(data.history || []);
+    } catch (e) {
+      console.error("Error al cargar historial:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const res = await fetch(`/api/clients/${client.id}/history`);
-        const data = await res.json();
-        setHistory(data.history || []);
-      } catch (e) {
-        console.error("Error al cargar historial:", e);
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
-    if (client?.id) fetchHistory();
+    if (client?.id) loadHistory();
   }, [client?.id]);
 
   const formatRut = (rut: string) => {
@@ -74,26 +74,14 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
       const res = await fetch(endpoint, { method: 'DELETE' });
       
       if (res.ok) {
-        const deletedItem = historyWithBalances.find(h => h.id === itemToDelete.id);
+        onUpdate(); // Avisamos al padre para que actualice la tabla de atrás
         
-        if (deletedItem) {
-          let netBalance = currentDebt - currentCredit;
-          if (itemToDelete.type === 'payment') {
-            netBalance += (deletedItem.amount || 0);
-          } else {
-            netBalance -= ((deletedItem.total || 0) - (deletedItem.amountPaid || 0));
-          }
-          setCurrentDebt(netBalance > 0 ? netBalance : 0);
-          setCurrentCredit(netBalance < 0 ? Math.abs(netBalance) : 0);
-        }
-
-        setHistory(prev => prev.filter(h => h.id !== itemToDelete.id));
-        onUpdate(); 
-
         if (itemToDelete.type !== 'payment') {
           window.dispatchEvent(new Event('stockUpdated'));
         }
 
+        // Descargamos el historial fresco, la UI se recalculará sola y exacta.
+        await loadHistory();
       } else {
         const err = await res.json();
         alert(`Error al eliminar: ${err.error || 'Problema desconocido'}`);
@@ -116,6 +104,8 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
 
   const normalizeText = (text: string) => (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+  // Aquí se calcula TODO el historial matemáticamente. 
+  // Esto nos da la garantía de que los números NUNCA se desfasen.
   const historyWithBalances = React.useMemo(() => {
     let runningBal = 0;
     return [...history]
@@ -123,6 +113,7 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
       .map(entry => {
         const debtBefore = runningBal > 0 ? runningBal : 0;
         const creditBefore = runningBal < 0 ? Math.abs(runningBal) : 0;
+        
         let netChange = 0;
         if (entry.type === 'payment') {
           netChange = -Number(entry.amount || 0);
@@ -130,10 +121,24 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
           netChange = Number(entry.total || 0) - Number(entry.amountPaid || 0);
         }
         runningBal += netChange;
-        return { ...entry, debtBefore, creditBefore };
+        
+        const debtAfter = runningBal > 0 ? runningBal : 0;
+        const creditAfter = runningBal < 0 ? Math.abs(runningBal) : 0;
+
+        return { ...entry, debtBefore, creditBefore, debtAfter, creditAfter };
       })
       .reverse();
   }, [history]);
+
+  // Extraemos la deuda/crédito ACTUAL directo del último cálculo matemático del historial.
+  const currentDebt = history.length > 0 
+    ? historyWithBalances[0].debtAfter 
+    : (loadingHistory ? (client?.totalDebt || 0) : 0);
+
+  const currentCredit = history.length > 0 
+    ? historyWithBalances[0].creditAfter 
+    : (loadingHistory ? (client?.creditBalance || 0) : 0);
+
 
   const normalizedSearch = normalizeText(searchTerm).trim();
   const filteredHistory = historyWithBalances.filter(entry => {
@@ -142,7 +147,16 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
     const typeStr = entry.type === 'payment' ? 'abono pago' : 'compra realizada';
     const amountStr = formatPrice(entry.type === 'payment' ? entry.amount : (entry.total || entry.amount));
     const itemsMatch = entry.items?.some((item: any) => normalizeText(item.title).includes(normalizedSearch));
-    return dateStr.includes(normalizedSearch) || typeStr.includes(normalizedSearch) || amountStr.includes(normalizedSearch) || itemsMatch;
+    
+    const paymentMethodsStr = Array.isArray(entry.paymentMethod) 
+      ? normalizeText(entry.paymentMethod.join(' ')) 
+      : '';
+
+    return dateStr.includes(normalizedSearch) || 
+           typeStr.includes(normalizedSearch) || 
+           amountStr.includes(normalizedSearch) || 
+           itemsMatch ||
+           paymentMethodsStr.includes(normalizedSearch);
   });
 
   return (
@@ -163,7 +177,6 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                 )}
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Perfil del Cliente</p>
                 
-                {/* RUT DEL CLIENTE AGREGADO AQUÍ */}
                 {client.rut && (
                   <div className="flex items-center gap-1.5 mt-1 opacity-70">
                     <Fingerprint className="w-3 h-3 text-gray-400" />
@@ -193,7 +206,7 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                 <div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div className="flex items-center gap-2"><History className="w-4 h-4 text-gray-400" /><h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Historial</h3></div>
-                    <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-gray-50 border rounded-xl text-sm font-medium outline-none focus:border-[var(--color-primary)]" /></div>
+                    <div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" placeholder="Buscar por fecha, monto, libro o pago..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-gray-50 border rounded-xl text-sm font-medium outline-none focus:border-[var(--color-primary)]" /></div>
                   </div>
                   {loadingHistory ? (<div className="py-10 text-center"><Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)] mx-auto" /></div>) : filteredHistory.length === 0 ? (<div className="py-10 text-center bg-gray-50 rounded-[2rem] border border-dashed border-gray-200"><p className="text-gray-400 font-medium">No hay registros.</p></div>) : (
                     <div className="space-y-4">
@@ -223,6 +236,19 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                                   {isPayment ? 'Abono / Pago de Deuda' : `Compra del ${getDebtDate(entry)}`}
                                 </p>
                                 {isPayment && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{getDebtDate(entry)}</p>}
+
+                                {isPayment && (entry.paymentMethod && entry.paymentMethod.length > 0) && (
+                                  <div className="flex gap-2 mt-2 mb-1">
+                                    {entry.paymentMethod.includes('efectivo') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase tracking-widest">Efectivo</span>}
+                                    {entry.paymentMethod.includes('transferencia') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 uppercase tracking-widest">Transf.</span>}
+                                  </div>
+                                )}
+                                {isPayment && entry.clientRut && (
+                                  <div className="flex items-center gap-1.5 mt-1 opacity-70">
+                                    <Fingerprint className="w-3 h-3 text-gray-500" />
+                                    <p className="text-[9px] font-bold text-gray-600 uppercase tracking-widest truncate">RUT: {formatRut(entry.clientRut)}</p>
+                                  </div>
+                                )}
 
                                 {!isPayment && (entry.paymentMethod && entry.paymentMethod.length > 0) && (
                                   <div className="flex gap-2 mt-2 mb-1">

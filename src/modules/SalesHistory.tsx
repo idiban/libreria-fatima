@@ -6,35 +6,14 @@ import EditSaleModal from './SaleModal';
 
 interface SalesHistoryProps {
   currentUser: UserProfile;
+  sales: SaleRecord[];
+  loading: boolean;
+  onRefresh: () => void;
 }
 
-export default function SalesHistory({ currentUser }: SalesHistoryProps) {
-  const [sales, setSales] = useState<SaleRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function SalesHistory({ currentUser, sales, loading, onRefresh }: SalesHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
-
-  const fetchSales = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/sales');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setSales(data);
-      } else {
-        console.error("Failed to fetch sales:", data);
-        setSales([]);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchSales();
-  }, []);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -161,7 +140,8 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
                   </div>
                 </div>
 
-                {(sale.notes || (sale.paymentMethod && sale.paymentMethod.length > 0) || (sale.discount && sale.discount > 0)) && (
+                {/* AQUÍ ESTÁ EL CAMBIO: Agregamos !! para forzar que sea un booleano verdadero/falso */}
+                {!!(sale.notes || (sale.paymentMethod && sale.paymentMethod.length > 0) || (sale.discount && sale.discount > 0)) && (
                   <div className="mt-1 pt-3 border-t border-gray-100/50 w-full flex flex-col sm:flex-row sm:items-end justify-between gap-3">
                     <div className="space-y-2">
                       {sale.paymentMethod && sale.paymentMethod.length > 0 && (
@@ -198,7 +178,7 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
           currentUser={currentUser}
           onSaleSuccess={() => {
             setSelectedSale(null);
-            fetchSales();
+            onRefresh();
           }}
         />
       )}

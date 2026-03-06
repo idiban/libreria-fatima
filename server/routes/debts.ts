@@ -23,7 +23,7 @@ router.get("/client/:clientId", async (req, res) => {
       const data = doc.data();
       return {
         id: doc.id,
-        type: 'sale',
+        type: 'sale' as const,
         ...data,
         amount: (data.total || 0) - (data.amountPaid || 0),
         timestamp: data.timestamp?.toDate()
@@ -34,12 +34,16 @@ router.get("/client/:clientId", async (req, res) => {
       .where("clientId", "==", clientId)
       .get();
 
-    const payments = paymentsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      type: 'payment',
-      ...doc.data(),
-      timestamp: doc.data().timestamp?.toDate()
-    }));
+    const payments = paymentsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        type: 'payment' as const,
+        ...data,
+        amount: data.amount || 0,
+        timestamp: data.timestamp?.toDate()
+      };
+    });
 
     // Ordenamos desde la MÁS ANTIGUA a la MÁS NUEVA para calcular la deuda acumulada
     const allHistory = [...sales, ...payments].sort((a, b) => {
@@ -53,9 +57,9 @@ router.get("/client/:clientId", async (req, res) => {
 
     for (const entry of allHistory) {
       if (entry.type === 'sale') {
-        runningDebt += entry.amount;
+        runningDebt += (entry as any).amount;
       } else if (entry.type === 'payment') {
-        runningDebt -= (entry.amount || 0);
+        runningDebt -= (entry as any).amount;
       }
 
       activeHistory.push(entry);

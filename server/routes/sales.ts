@@ -9,8 +9,8 @@ router.post("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    // 1. AGREGADO: clientRut en la desestructuración
-    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
+    // 1. AGREGADO: clientRut, manualDate, affectStock en la desestructuración
+    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount, manualDate, affectStock = true } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const bookItems = items.filter((item: any) => !item.bookId.startsWith('custom_'));
@@ -33,9 +33,12 @@ router.post("/", async (req, res) => {
       
       const clientDoc: any = clientId ? await transaction.get(clientRef) : null;
 
-      for (let i = 0; i < bookDocs.length; i++) {
-        const currentStock = (bookDocs[i].data() as any)?.stock || 0;
-        transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - bookItems[i].quantity) });
+      // SOLO ACTUALIZAR STOCK SI affectStock ES TRUE
+      if (affectStock) {
+        for (let i = 0; i < bookDocs.length; i++) {
+          const currentStock = (bookDocs[i].data() as any)?.stock || 0;
+          transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - bookItems[i].quantity) });
+        }
       }
 
       const currentDebt = clientDoc?.exists ? (clientDoc.data().totalDebt || 0) : 0;
@@ -63,6 +66,16 @@ router.post("/", async (req, res) => {
       }
       
       const saleRef = firestore.collection("ventas").doc();
+      
+      // Lógica de fecha manual: Combinar fecha seleccionada con hora actual
+      let saleTimestamp = admin.firestore.FieldValue.serverTimestamp();
+      if (manualDate) {
+        const d = new Date(manualDate);
+        const now = new Date();
+        d.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+        saleTimestamp = admin.firestore.Timestamp.fromDate(d);
+      }
+
       transaction.set(saleRef, {
         items,
         clientId: finalClientId,
@@ -75,7 +88,8 @@ router.post("/", async (req, res) => {
         paymentMethod: paymentMethod || [],
         notes: notes || '',
         discount: Number(discount) || 0,
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
+        timestamp: saleTimestamp,
+        affectStock
       });
     });
 
@@ -104,14 +118,15 @@ router.put("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
-    // 4. AGREGADO: clientRut en la desestructuración del PUT
-    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
+    // 4. AGREGADO: clientRut, manualDate, affectStock en la desestructuración del PUT
+    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount, manualDate, affectStock = true } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
       const saleDoc = await transaction.get(saleRef);
       if (!saleDoc.exists) throw new Error("Venta no encontrada");
       const oldSaleData = saleDoc.data()!;
+      const oldAffectStock = oldSaleData.affectStock !== undefined ? oldSaleData.affectStock : true;
       
       const oldBookIds = (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_')).map((i: any) => i.bookId);
       const newBookIds = (items || []).filter((i: any) => !i.bookId.startsWith('custom_')).map((i: any) => i.bookId);
@@ -146,11 +161,19 @@ router.put("/:id", async (req, res) => {
       }
       
       const stockChanges = new Map<string, number>();
-      for (const oldItem of (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
-        stockChanges.set(oldItem.bookId, (stockChanges.get(oldItem.bookId) || 0) + oldItem.quantity);
+      
+      // Si antes afectaba stock, devolvemos lo viejo
+      if (oldAffectStock) {
+        for (const oldItem of (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
+          stockChanges.set(oldItem.bookId, (stockChanges.get(oldItem.bookId) || 0) + oldItem.quantity);
+        }
       }
-      for (const newItem of (items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
-        stockChanges.set(newItem.bookId, (stockChanges.get(newItem.bookId) || 0) - newItem.quantity);
+      
+      // Si ahora afecta stock, restamos lo nuevo
+      if (affectStock) {
+        for (const newItem of (items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
+          stockChanges.set(newItem.bookId, (stockChanges.get(newItem.bookId) || 0) - newItem.quantity);
+        }
       }
       
       for (const [bookId, change] of stockChanges.entries()) {
@@ -198,12 +221,21 @@ router.put("/:id", async (req, res) => {
         };
 
         if (!clientId) {
-          transaction.set(newClientRef, { ...newClientUpdate, name_lowercase: clientName.toLowerCase(), createdAt: admin.FieldValue.serverTimestamp() });
+          transaction.set(newClientRef, { ...newClientUpdate, name_lowercase: clientName.toLowerCase(), createdAt: admin.firestore.FieldValue.serverTimestamp() });
         } else {
           transaction.update(newClientRef, newClientUpdate);
         }
       }
       
+      // Lógica de fecha manual para actualización
+      let saleTimestamp = oldSaleData.timestamp;
+      if (manualDate) {
+        const d = new Date(manualDate);
+        const now = new Date();
+        d.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+        saleTimestamp = admin.firestore.Timestamp.fromDate(d);
+      }
+
       transaction.update(saleRef, { 
         items, 
         clientId: finalClientId, 
@@ -215,7 +247,9 @@ router.put("/:id", async (req, res) => {
         sellerName,
         paymentMethod: paymentMethod || [],
         notes: notes || '',
-        discount: Number(discount) || 0
+        discount: Number(discount) || 0,
+        timestamp: saleTimestamp,
+        affectStock
       });
     });
 

@@ -123,7 +123,8 @@ router.post("/:id/pay", async (req, res) => {
 
   try {
       const { id } = req.params;
-      const { amount } = req.body;
+      // AQUÍ AGREGAMOS paymentMethod y clientRut
+      const { amount, paymentMethod, clientRut } = req.body;
 
       if (!amount || typeof amount !== 'number' || amount <= 0) {
           return res.status(400).json({ error: "Monto de pago inválido." });
@@ -157,6 +158,8 @@ router.post("/:id/pay", async (req, res) => {
             clientId: id,
             clientName: clientNameLog,
             amount: amount,
+            paymentMethod: paymentMethod || [], // <-- SE GUARDA EL MÉTODO DE PAGO
+            clientRut: clientRut || "",         // <-- SE GUARDA EL RUT DEL PAGO
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             type: 'payment'
           });
@@ -167,7 +170,7 @@ router.post("/:id/pay", async (req, res) => {
           try {
               const user = JSON.parse(userCookie);
               await logActivity(user.id, user.username, "DEBT_PAYMENT", {
-                  clientName: clientNameLog, // <-- ¡AQUÍ ESTÁ LA MAGIA! Agregamos el nombre
+                  clientName: clientNameLog, 
                   amountPaid: amount
               });
           } catch (e) {

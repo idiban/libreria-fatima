@@ -4,36 +4,15 @@ import { motion } from 'motion/react';
 import { ClientRecord } from '../types';
 import ClientDetailModal from './ClientDetailModal';
 
-export default function ClientsList() {
-  const [clients, setClients] = useState<ClientRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+interface ClientsListProps {
+  clients: ClientRecord[];
+  loading: boolean;
+  onRefresh: () => void;
+}
+
+export default function ClientsList({ clients, loading, onRefresh }: ClientsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
-
-  const fetchClients = async () => {
-    try {
-      const res = await fetch('/api/clients');
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.indexOf('application/json') !== -1) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setClients(data.sort((a, b) => a.name.localeCompare(b.name)));
-        } else {
-          setClients([]);
-        }
-      } else {
-        setClients([]);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchClients();
-  }, []);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -93,7 +72,7 @@ export default function ClientsList() {
           client={selectedClient}
           onClose={() => setSelectedClient(null)}
           onUpdate={() => {
-            fetchClients();
+            onRefresh();
           }}
         />
       )}

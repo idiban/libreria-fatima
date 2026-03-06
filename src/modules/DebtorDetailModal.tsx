@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Loader2, Check, Trash2, AlertTriangle, PiggyBank } from 'lucide-react';
+import { X, DollarSign, Loader2, Check, Trash2, AlertTriangle, PiggyBank, Wallet, Landmark, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRecord, BookItem } from '../types';
 
@@ -20,6 +20,55 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
   const [paymentToDelete, setPaymentToDelete] = useState<string | null>(null);
   
   const [showOverpayConfirm, setShowOverpayConfirm] = useState(false);
+
+  // Funciones de validación de RUT movidas arriba para poder usarlas en el useEffect inicial
+  const formatRut = (rut: string) => {
+    if (!rut) return '';
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedBody}-${dv}`;
+  };
+
+  const validateRut = (rut: string) => {
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 8) return false;
+
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+
+    let sum = 0;
+    let multiplier = 2;
+
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body[i]) * multiplier;
+      multiplier = multiplier === 7 ? 2 : multiplier + 1;
+    }
+
+    const expectedDv = 11 - (sum % 11);
+    const dvChar = expectedDv === 11 ? '0' : expectedDv === 10 ? 'K' : expectedDv.toString();
+
+    return dv === dvChar;
+  };
+
+  const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [paymentMethodError, setPaymentMethodError] = useState(false);
+  const [clientRut, setClientRut] = useState('');
+  const [isRutInvalid, setIsRutInvalid] = useState(false);
+
+  // NUEVO: Precargar el RUT si el cliente ya lo tiene en la base de datos
+  useEffect(() => {
+    if (client?.rut) {
+      const formatted = formatRut(client.rut);
+      setClientRut(formatted);
+      setIsRutInvalid(formatted ? !validateRut(formatted) : false);
+    } else {
+      setClientRut('');
+      setIsRutInvalid(false);
+    }
+  }, [client]);
 
   useEffect(() => {
     const fetchDebtDetail = async () => {
@@ -42,6 +91,14 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
 
   const formatPrice = (price: number) => {
     return Number(price).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const togglePaymentMethod = (method: string) => {
+    setPaymentMethods(prev => {
+      if (prev.includes(method)) return prev.filter(m => m !== method);
+      return [...prev, method];
+    });
+    setPaymentMethodError(false);
   };
 
   const getDebtDate = (entry: any) => {
@@ -129,6 +186,15 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
   const handlePayment = async () => {
     if (amountToPay <= 0) return;
 
+    if (paymentMethods.length === 0) {
+      setPaymentMethodError(true);
+      return;
+    }
+
+    if (paymentMethods.includes('transferencia') && clientRut && isRutInvalid) {
+      return;
+    }
+
     if (amountToPay > client.totalDebt && !showOverpayConfirm) {
       setShowOverpayConfirm(true);
       return;
@@ -139,11 +205,32 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
 
   const executePayment = async () => {
     setIsPaying(true);
+    const cleanRut = clientRut.replace(/\./g, '');
+
     try {
+      if (cleanRut && !isRutInvalid) {
+        try {
+          await fetch(`/api/clients/${client.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rut: cleanRut })
+          });
+          // NUEVO: Modificamos el objeto cliente localmente para que al abrir
+          // ClientDetailModal muestre el RUT actualizado inmediatamente.
+          client.rut = cleanRut;
+        } catch (e) {
+          console.error("Error actualizando RUT del cliente:", e);
+        }
+      }
+
       const response = await fetch(`/api/clients/${client.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amountToPay })
+        body: JSON.stringify({ 
+          amount: amountToPay,
+          paymentMethod: paymentMethods,
+          clientRut: cleanRut
+        })
       });
 
       if (response.ok) {
@@ -216,6 +303,12 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                               <div className="flex-1">
                                 <p className="font-bold text-sm text-emerald-900 leading-tight">{entry.label || 'Pago de deuda'}</p>
                                 <p className="text-[10px] font-medium text-emerald-600 mt-0.5">{getDebtDate(entry)}</p>
+                                {(entry.paymentMethod && entry.paymentMethod.length > 0) && (
+                                  <div className="flex gap-2 mt-2">
+                                    {entry.paymentMethod.includes('efectivo') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 uppercase">Efectivo</span>}
+                                    {entry.paymentMethod.includes('transferencia') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200 uppercase">Transf.</span>}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                                 <p className="font-black text-sm sm:text-base text-emerald-600">Pagó: ${formatPrice(entry.amount)}</p>
@@ -247,7 +340,6 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                                     </div>
                                   )}
                                   
-                                  {/* NUEVO: Detalles de Método de pago y Notas */}
                                   {(entry.paymentMethod && entry.paymentMethod.length > 0) && (
                                     <div className="flex gap-2 mt-2">
                                       {entry.paymentMethod.includes('efectivo') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 uppercase">Efectivo</span>}
@@ -291,27 +383,76 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 pt-6 border-t border-[var(--color-warm-surface)]">
-                    <div className="space-y-2">
-                      <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Monto a Pagar</label>
-                      <div className="relative">
-                        <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                          type="text"
-                          className="w-full pl-12 pr-4 py-3 sm:py-4 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-lg sm:text-xl"
-                          value={amountToPay ? formatPrice(amountToPay) : ''}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, '');
-                            setAmountToPay(Number(val)); 
-                          }}
-                        />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Monto a Pagar</label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            className="w-full pl-12 pr-4 py-3 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-2xl outline-none transition-all font-black text-lg sm:text-xl"
+                            value={amountToPay ? formatPrice(amountToPay) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setAmountToPay(Number(val)); 
+                              if (paymentMethodError && Number(val) > 0) setPaymentMethodError(false);
+                            }}
+                          />
+                        </div>
+                        <button 
+                          onClick={() => setAmountToPay(client.totalDebt)}
+                          className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
+                        >
+                          Completar Monto
+                        </button>
                       </div>
-                      <button 
-                        onClick={() => setAmountToPay(client.totalDebt)}
-                        className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
-                      >
-                        Completar Monto
-                      </button>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Método de Pago</label>
+                        <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl border-2 transition-all ${paymentMethodError ? 'border-red-400 bg-red-50' : 'border-transparent'}`}>
+                          <button 
+                            onClick={() => togglePaymentMethod('efectivo')}
+                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('efectivo') ? 'bg-emerald-500 text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                          >
+                            <Wallet className="w-4 h-4" /> Efectivo
+                          </button>
+                          <button 
+                            onClick={() => togglePaymentMethod('transferencia')}
+                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('transferencia') ? 'bg-emerald-500 text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                          >
+                            <Landmark className="w-4 h-4" /> Transf.
+                          </button>
+                        </div>
+                        {paymentMethodError && <p className="text-red-500 text-[9px] font-bold text-center mt-1">Selecciona el método de pago</p>}
+                      </div>
+
+                      {paymentMethods.includes('transferencia') && (
+                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+                          <label className={`text-[10px] font-black uppercase tracking-widest ml-1 transition-colors ${isRutInvalid ? 'text-red-500' : 'text-gray-400'}`}>
+                            RUT de quien transfiere {isRutInvalid && '— Inválido'}
+                          </label>
+                          <div className="relative">
+                            <Fingerprint className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isRutInvalid ? 'text-red-400' : 'text-gray-400'}`} />
+                            <input
+                              type="text"
+                              placeholder="Ej: 12.345.678-9 (Opcional)"
+                              className={`w-full pl-9 pr-3 py-2.5 rounded-xl outline-none transition-all font-bold text-sm border-2 ${
+                                isRutInvalid 
+                                  ? 'bg-red-50 border-red-400 text-red-700' 
+                                  : 'bg-blue-50 border-transparent focus:border-blue-400 text-blue-700'
+                              }`}
+                              value={clientRut}
+                              onChange={(e) => {
+                                const formatted = formatRut(e.target.value);
+                                setClientRut(formatted);
+                                setIsRutInvalid(formatted ? !validateRut(formatted) : false);
+                              }}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
                     </div>
+
                     <div className="flex justify-center sm:justify-end items-center h-full">
                       <div className={`w-full sm:w-auto rounded-2xl p-4 flex flex-col justify-center items-center text-white shadow-xl transition-all duration-300 ${
                         amountToPay >= client.totalDebt
@@ -348,7 +489,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
               </button>
               <button
                 onClick={handlePayment}
-                disabled={isPaying || amountToPay <= 0}
+                disabled={isPaying || amountToPay <= 0 || (paymentMethods.includes('transferencia') && clientRut !== '' && isRutInvalid)}
                 className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-2xl font-black text-sm sm:text-xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50"
               >
                 {isPaying ? (

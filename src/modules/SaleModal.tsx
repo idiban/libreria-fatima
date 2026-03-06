@@ -14,7 +14,8 @@ import {
   Wallet,
   Landmark,
   Percent,
-  Fingerprint
+  Fingerprint,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem, SaleRecord } from '../types';
@@ -65,6 +66,10 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
   const [paymentMethodError, setPaymentMethodError] = useState(false);
   const [notes, setNotes] = useState('');
   const [discount, setDiscount] = useState<number | ''>('');
+  
+  // Campos de Migración (Solo Owner)
+  const [manualDate, setManualDate] = useState('');
+  const [affectStock, setAffectStock] = useState(true);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -183,6 +188,8 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
         setPaymentMethods(Array.isArray(sale.paymentMethod) ? sale.paymentMethod : (sale.paymentMethod ? [sale.paymentMethod as string] : []));
         setNotes(sale.notes || '');
         setDiscount(sale.discount || '');
+        setManualDate(sale.timestamp ? new Date(sale.timestamp).toISOString().split('T')[0] : '');
+        setAffectStock(sale.affectStock !== undefined ? sale.affectStock : true);
       } else {
         setItems(initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []);
         setClientName('');
@@ -197,6 +204,8 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
         setPaymentMethods([]);
         setNotes('');
         setDiscount('');
+        setManualDate('');
+        setAffectStock(true);
       }
       setBookSearchTerm('');
       setPaymentMethodError(false);
@@ -371,7 +380,9 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
           sellerName: currentUser.username,
           paymentMethod: paymentMethods,
           notes,
-          discount: discountPercentage
+          discount: discountPercentage,
+          manualDate: manualDate || null,
+          affectStock
         })
       });
 
@@ -796,6 +807,43 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[var(--color-primary)] transition-all text-xs font-medium resize-none"
                       />
                     </div>
+
+                    {/* SECCIÓN DE MIGRACIÓN (SOLO OWNER) */}
+                    {currentUser.role === 'owner' && (
+                      <div className="pt-4 mt-4 border-t border-dashed border-gray-200 space-y-4">
+                        <div className="flex items-center justify-between bg-amber-50 p-3 rounded-xl border border-amber-100">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                              <History className="w-4 h-4 text-amber-600" />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-amber-800">Modo Histórico</p>
+                              <p className="text-[9px] font-bold text-amber-600">Para registros del pasado</p>
+                            </div>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                              type="checkbox" 
+                              className="sr-only peer" 
+                              checked={!affectStock}
+                              onChange={() => setAffectStock(!affectStock)}
+                            />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                            <span className="ml-2 text-[10px] font-black uppercase text-amber-800 tracking-tighter">No tocar stock</span>
+                          </label>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Fecha de la Venta (Opcional)</label>
+                          <input
+                            type="date"
+                            value={manualDate}
+                            onChange={(e) => setManualDate(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-white border-2 border-gray-100 focus:border-amber-400 rounded-xl outline-none text-sm font-bold transition-all shadow-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col justify-center">

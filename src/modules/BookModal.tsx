@@ -12,7 +12,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookItem } from '../types';
+import { BookItem, UserProfile } from '../types';
 
 interface BookModalProps {
   isOpen: boolean;
@@ -20,9 +20,10 @@ interface BookModalProps {
   editingBook: BookItem | null;
   onSave: () => void;
   books: BookItem[];
+  currentUser: UserProfile | null;
 }
 
-export default function BookModal({ isOpen, onClose, editingBook, onSave, books }: BookModalProps) {
+export default function BookModal({ isOpen, onClose, editingBook, onSave, books, currentUser }: BookModalProps) {
   const [formData, setFormData] = useState({
     title: '',
     tomo: '',
@@ -227,6 +228,10 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     setFormData(prev => ({ ...prev, price: Math.max(0, prev.price + delta) }));
   };
 
+  const isOwner = currentUser?.role === 'owner';
+  const perms = currentUser?.permissions || { canAddBook: true, canEditStock: true, canEditBook: true, canDeleteBook: true };
+  const canEditStock = isOwner || perms.canEditStock !== false;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -259,12 +264,16 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   const executeSave = async () => {
     setIsLoading(true);
     try {
-      let finalFormData = { ...formData };
+      let finalFormData: any = { ...formData };
       if (formData.cover_url.startsWith('data:')) {
         finalFormData.cover_url = await compressImage(formData.cover_url);
       }
       if (formData.contraportada_url?.startsWith('data:')) {
         finalFormData.contraportada_url = await compressImage(formData.contraportada_url);
+      }
+
+      if (editingBook && !canEditStock) {
+        delete finalFormData.stock;
       }
 
       const url = editingBook ? `/api/books/${editingBook.id}` : '/api/books';
@@ -280,8 +289,20 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         onSave();
         onClose();
       } else {
-        const errorData = await response.json();
-        const errorMsg = `Error al guardar: ${errorData.error || 'Error desconocido'}`;
+        if (response.status === 403) {
+           alert("Usted no tiene permisos para esa acción");
+           setValidationError("Usted no tiene permisos para esa acción");
+           return;
+        }
+
+        let errorMsg = 'Error al guardar el libro. Por favor intenta de nuevo.';
+        try {
+          const errorData = await response.json();
+          errorMsg = `Error al guardar: ${errorData.error || 'Error desconocido'}`;
+        } catch (e) {
+          console.error("No se pudo parsear la respuesta JSON del error:", e);
+        }
+        
         setValidationError(errorMsg);
         alert(errorMsg);
       }
@@ -552,11 +573,18 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           <input
                             type="number"
                             name="stock"
-                            className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl`}
+                            disabled={editingBook !== null && !canEditStock}
+                            className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl ${(editingBook && !canEditStock) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             value={formData.stock}
                             onChange={(e) => {
                               handleInputChange(e);
                               if (errors.stock) setErrors(prev => ({ ...prev, stock: false }));
+                            }}
+                            onClick={(e) => {
+                              if (editingBook && !canEditStock) {
+                                e.preventDefault();
+                                alert("Usted no tiene permisos para esa acción");
+                              }
                             }}
                           />
                         </div>

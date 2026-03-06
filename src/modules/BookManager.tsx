@@ -332,7 +332,16 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
 
   return (
     // Reducimos padding (p-0.5), redondeo (rounded-lg)
-    <div className={`inline-flex items-center gap-0 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm transition-all ${disabled ? 'opacity-50 pointer-events-none' : 'hover:shadow hover:border-[var(--color-primary)]/40'}`}>
+    <div 
+      className={`inline-flex items-center gap-0 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm transition-all ${disabled ? 'opacity-50' : 'hover:shadow hover:border-[var(--color-primary)]/40'}`}
+      onClickCapture={(e) => {
+        if (disabled) {
+          e.stopPropagation();
+          e.preventDefault();
+          alert("Usted no tiene permisos para esa acción");
+        }
+      }}
+    >
       <button 
         onClick={handleDecrement}
         disabled={disabled || isUpdating || Number(stock) === 0}

@@ -39,11 +39,16 @@ export interface SaleRecord {
   items: SaleItem[];
   clientId: string;
   clientName: string;
+  clientRut?: string;
   total: number;
   amountPaid: number;
   debt: number;
   sellerId: string;
   sellerName: string;
+  paymentMethod?: string[];
+  notes?: string;
+  discount?: number;
+  affectStock?: boolean;
   timestamp: any;
   date?: any;
 }
@@ -51,7 +56,9 @@ export interface SaleRecord {
 export interface ClientRecord {
   id: string;
   name: string;
+  rut?: string;
   totalDebt: number;
+  creditBalance?: number;
   createdAt: any;
 }
 
