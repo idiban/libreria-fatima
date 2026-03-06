@@ -528,7 +528,10 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                   <input type="text" required value={editUserFormData.username} onChange={e => setEditUserFormData({...editUserFormData, username: formatName(e.target.value)})} className="w-full px-5 py-3 bg-[#EEF2F6] rounded-xl font-bold outline-none focus:ring-2 focus:ring-[var(--color-primary)] transition-all" />
                 </div>
                 
-                {editingUser?.role !== 'owner' && editingUser?.role !== 'admin' && (
+                {/* MODIFICACIÓN: Si eres Owner, puedes cambiar el rol de todos menos el tuyo.
+                  Si no eres Owner, se mantiene la restricción de solo editar vendedores.
+                */}
+                {(currentUser.role === 'owner' ? editingUser?.id !== currentUser.id : (editingUser?.role !== 'owner' && editingUser?.role !== 'admin')) && (
                   <div className="space-y-1 relative">
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Rol</label>
                     
@@ -537,7 +540,9 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                       onClick={() => setIsEditRoleDropdownOpen(!isEditRoleDropdownOpen)}
                       className="w-full px-5 py-3 bg-[#EEF2F6] rounded-xl font-bold flex items-center justify-between hover:bg-[#E2E8F0] transition-all"
                     >
-                      <span className="capitalize">{editUserFormData.role === 'admin' ? 'Administrador' : editUserFormData.role}</span>
+                      <span className="capitalize">
+                        {editUserFormData.role === 'admin' ? 'Administrador' : editUserFormData.role === 'owner' ? 'Dueño' : editUserFormData.role}
+                      </span>
                       <ChevronDown className={`w-5 h-5 transition-transform ${isEditRoleDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
 
@@ -551,12 +556,12 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                             exit={{ opacity: 0, y: -10, scale: 0.95 }}
                             className="absolute z-20 w-full bg-white rounded-2xl shadow-xl border border-[#FDF2F0] overflow-hidden p-2"
                           >
-                            {(['vendedor', 'admin'] as const).map((role) => (
+                            {(['vendedor', 'admin', ...(currentUser.role === 'owner' ? ['owner'] : [])] as const).map((role) => (
                               <button
                                 key={role}
                                 type="button"
                                 onClick={() => {
-                                  setEditUserFormData({ ...editUserFormData, role: role });
+                                  setEditUserFormData({ ...editUserFormData, role: role as any });
                                   setIsEditRoleDropdownOpen(false);
                                 }}
                                 className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between ${
@@ -565,7 +570,9 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                                   : 'text-[#2D1A1A] hover:bg-[#F5F7FA]'
                                 }`}
                               >
-                                <span className="capitalize">{role === 'admin' ? 'Administrador' : role}</span>
+                                <span className="capitalize">
+                                  {role === 'admin' ? 'Administrador' : role === 'owner' ? 'Dueño' : role}
+                                </span>
                                 {editUserFormData.role === role && <Check className="w-4 h-4" />}
                               </button>
                             ))}
