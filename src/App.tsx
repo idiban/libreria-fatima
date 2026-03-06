@@ -305,8 +305,8 @@ export default function App() {
             onBookClick={handleBookClick}
           />
         );
-      case 'books':
-        return <BookManager books={books} onEditBook={(book) => {
+     case 'books':
+        return <BookManager books={books} currentUser={currentUser} onEditBook={(book) => {
           setEditingBook(book);
           setIsBookModalOpen(true);
         }} onAddBook={() => {

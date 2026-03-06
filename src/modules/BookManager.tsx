@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, Minus, Search, Edit2, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Loader2, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { BookItem } from '../types';
+import { BookItem, UserProfile } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal'; 
 
 // Función de ayuda para formatear precios con puntos (ej. 15.000)
@@ -12,6 +12,7 @@ const formatPrice = (price?: number) => {
 
 interface BookManagerProps {
   books: BookItem[];
+  currentUser: UserProfile | null; // <-- Añadimos el usuario
   onEditBook: (book: BookItem) => void;
   onAddBook: () => void;
   onBookDeleted: () => void;
@@ -21,7 +22,10 @@ interface BookManagerProps {
 type SortColumn = 'title' | 'category' | 'price' | 'stock';
 type SortDirection = 'asc' | 'desc';
 
-export default function BookManager({ books, onEditBook, onAddBook, onBookDeleted }: BookManagerProps) {
+export default function BookManager({ books, currentUser, onEditBook, onAddBook, onBookDeleted }: BookManagerProps) {
+  
+  const isOwner = currentUser?.role === 'owner';
+  const perms = currentUser?.permissions || { canAddBook: true, canEditStock: true, canEditBook: true, canDeleteBook: true };
   const [searchTerm, setSearchTerm] = useState('');
   const [bookToDelete, setBookToDelete] = useState<BookItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -127,13 +131,15 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
             </button>
           )}
         </div>
-          <button
-            onClick={onAddBook}
-            className="bg-[var(--color-primary)] text-white px-6 py-4 sm:py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all shrink-0"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Añadir Libro</span>
-          </button>
+          {(isOwner || perms.canAddBook !== false) && (
+            <button
+              onClick={onAddBook}
+              className="bg-[var(--color-primary)] text-white px-6 py-4 sm:py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all shrink-0"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Añadir Libro</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -176,7 +182,9 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                     Stock {renderSortIcon('stock')}
                   </div>
                 </th>
-                <th className="w-24 px-4 py-4 text-right cursor-default">Acciones</th>
+                {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
+                  <th className="w-24 px-4 py-4 text-right cursor-default">Acciones</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-warm-surface)]">
@@ -186,6 +194,9 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                   book={book} 
                   onEditBook={onEditBook}
                   onDeleteRequest={setBookToDelete}
+                  canEditBook={isOwner || perms.canEditBook !== false}
+                  canDeleteBook={isOwner || perms.canDeleteBook !== false}
+                  canEditStock={isOwner || perms.canEditStock !== false}
                 />
               ))}
             </tbody>
@@ -227,25 +238,31 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Stock</span>
-                  <InlineStockInput book={book} textClass="text-lg" />
+                  <InlineStockInput book={book} textClass="text-lg" disabled={!(isOwner || perms.canEditStock !== false)} />
                 </div>
               </div>
               
               {/* Botones de acción abajo para dar espacio */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-50">
-                <button 
-                  onClick={() => onEditBook(book)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[var(--color-warm-bg)] rounded-xl text-[var(--color-primary)] font-bold text-sm shadow-sm active:scale-95 transition-all"
-                >
-                  <Edit2 className="w-4 h-4" /> Editar
-                </button>
-                <button 
-                  onClick={() => setBookToDelete(book)}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-red-50 rounded-xl text-red-500 font-bold text-sm shadow-sm active:scale-95 transition-all"
-                >
-                  <Trash2 className="w-4 h-4" /> Eliminar
-                </button>
-              </div>
+              {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-50">
+                  {(isOwner || perms.canEditBook !== false) && (
+                    <button 
+                      onClick={() => onEditBook(book)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[var(--color-warm-bg)] rounded-xl text-[var(--color-primary)] font-bold text-sm shadow-sm active:scale-95 transition-all"
+                    >
+                      <Edit2 className="w-4 h-4" /> Editar
+                    </button>
+                  )}
+                  {(isOwner || perms.canDeleteBook !== false) && (
+                    <button 
+                      onClick={() => setBookToDelete(book)}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-red-50 rounded-xl text-red-500 font-bold text-sm shadow-sm active:scale-95 transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" /> Eliminar
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -265,7 +282,7 @@ export default function BookManager({ books, onEditBook, onAddBook, onBookDelete
 }
 
 // NUEVO: Componente para modificar el stock en vivo (Con estado de carga y UI Premium para Web y Móvil)
-function InlineStockInput({ book, textClass = "text-lg" }: { book: BookItem, textClass?: string }) {
+function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { book: BookItem, textClass?: string, disabled?: boolean }) {
   const [stock, setStock] = useState<number | string>(book.stock);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -310,10 +327,10 @@ function InlineStockInput({ book, textClass = "text-lg" }: { book: BookItem, tex
 
   return (
     // Reducimos padding (p-0.5), redondeo (rounded-lg)
-    <div className="inline-flex items-center gap-0 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm hover:shadow hover:border-[var(--color-primary)]/40 transition-all">
+    <div className={`inline-flex items-center gap-0 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm transition-all ${disabled ? 'opacity-50 pointer-events-none' : 'hover:shadow hover:border-[var(--color-primary)]/40'}`}>
       <button 
         onClick={handleDecrement}
-        disabled={isUpdating || Number(stock) === 0}
+        disabled={disabled || isUpdating || Number(stock) === 0}
         // Botón más chico (w-6 h-6), ícono mini (w-3 h-3)
         className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         title="Disminuir stock"
@@ -334,7 +351,7 @@ function InlineStockInput({ book, textClass = "text-lg" }: { book: BookItem, tex
           onChange={(e) => setStock(e.target.value)}
           onBlur={handleInputBlur}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          disabled={isUpdating}
+          disabled={disabled || isUpdating}
           title="Editar stock"
           // Input más angosto (w-8), texto más chico (text-sm)
           className={`w-8 px-0.5 py-0 bg-transparent focus:bg-gray-50 focus:ring-1 focus:ring-[var(--color-primary)]/20 rounded-md outline-none transition-all text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-black text-sm ${textClass} ${
@@ -345,7 +362,7 @@ function InlineStockInput({ book, textClass = "text-lg" }: { book: BookItem, tex
       
       <button 
         onClick={handleIncrement}
-        disabled={isUpdating}
+        disabled={disabled || isUpdating}
         // Botón más chico (w-6 h-6), ícono mini (w-3 h-3)
         className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         title="Aumentar stock"
@@ -361,9 +378,12 @@ interface BookRowProps {
   book: BookItem;
   onEditBook: (book: BookItem) => void;
   onDeleteRequest: (book: BookItem) => void;
+  canEditBook?: boolean;
+  canDeleteBook?: boolean;
+  canEditStock?: boolean;
 }
 
-function BookRow({ book, onEditBook, onDeleteRequest }: BookRowProps) {
+function BookRow({ book, onEditBook, onDeleteRequest, canEditBook = true, canDeleteBook = true, canEditStock = true }: BookRowProps) {
   return (
     <tr className="hover:bg-[var(--color-warm-bg)] transition-colors group">
       <td className="px-8 py-6 align-middle">
@@ -405,27 +425,33 @@ function BookRow({ book, onEditBook, onDeleteRequest }: BookRowProps) {
       </td>
       <td className="px-2 py-4 text-center align-middle">
         {/* Cambiamos a text-sm para que el número del stock no sea tan grande */}
-        <InlineStockInput book={book} textClass="text-sm" />
+        <InlineStockInput book={book} textClass="text-sm" disabled={!canEditStock} />
       </td>
-      <td className="px-4 py-4 text-right align-middle">
-        <div className="flex items-center justify-end gap-1">
-          <button 
-            onClick={() => onEditBook(book)}
-            // Padding a p-1.5, redondeo a md y tamaño de icono a w-3.5 h-3.5
-            className="p-1.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 shadow-sm transition-all"
-            title="Editar"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </button>
-          <button 
-            onClick={() => onDeleteRequest(book)}
-            className="p-1.5 bg-red-50 border border-red-100 rounded-md text-red-500 hover:bg-red-100 hover:border-red-200 shadow-sm transition-all"
-            title="Eliminar"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </td>
+      {(canEditBook || canDeleteBook) && (
+        <td className="px-4 py-4 text-right align-middle">
+          <div className="flex items-center justify-end gap-1">
+            {canEditBook && (
+              <button 
+                onClick={() => onEditBook(book)}
+                // Padding a p-1.5, redondeo a md y tamaño de icono a w-3.5 h-3.5
+                className="p-1.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 shadow-sm transition-all"
+                title="Editar"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {canDeleteBook && (
+              <button 
+                onClick={() => onDeleteRequest(book)}
+                className="p-1.5 bg-red-50 border border-red-100 rounded-md text-red-500 hover:bg-red-100 hover:border-red-200 shadow-sm transition-all"
+                title="Eliminar"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </td>
+      )}
     </tr>
   );
 }

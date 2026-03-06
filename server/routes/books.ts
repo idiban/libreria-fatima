@@ -49,6 +49,18 @@ router.post("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
+    // --- VALIDACIÓN DE PERMISOS ---
+    const userCookie = req.signedCookies?.user;
+    if (!userCookie) return res.status(401).json({ error: "No autorizado" });
+    const userSession = JSON.parse(userCookie);
+    
+    if (userSession.role !== 'owner') {
+      const userDoc = await firestore.collection("usuarios").doc(userSession.id).get();
+      const perms = userDoc.data()?.permissions || {};
+      if (perms.canAddBook === false) return res.status(403).json({ error: "No tienes permisos para agregar libros." });
+    }
+    // ------------------------------
+
     const { title, author, price, stock, category, description, cover_url, contraportada_url } = req.body;
     
     const finalCoverUrl = await uploadImageToStorage(cover_url, 'portadas');
@@ -69,7 +81,6 @@ router.post("/", async (req, res) => {
     const newDoc = await docRef.get();
     const data = newDoc.data();
     
-    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
       await logActivity(user.id, user.username, "BOOK_CREATE", { title: title, price: price });
@@ -88,6 +99,28 @@ router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+
+    // --- VALIDACIÓN DE PERMISOS ---
+    const userCookie = req.signedCookies?.user;
+    if (!userCookie) return res.status(401).json({ error: "No autorizado" });
+    const userSession = JSON.parse(userCookie);
+    
+    if (userSession.role !== 'owner') {
+      const userDoc = await firestore.collection("usuarios").doc(userSession.id).get();
+      const perms = userDoc.data()?.permissions || {};
+      
+      // Si está intentando actualizar stock
+      if (updates.stock !== undefined && perms.canEditStock === false) {
+        return res.status(403).json({ error: "No tienes permisos para editar stock." });
+      }
+      
+      // Si está intentando editar cualquier otra cosa (título, precio, etc)
+      const isEditingDetails = Object.keys(updates).some(k => k !== 'stock' && k !== 'cover_url' && k !== 'contraportada_url');
+      if (isEditingDetails && perms.canEditBook === false) {
+        return res.status(403).json({ error: "No tienes permisos para editar detalles de libros." });
+      }
+    }
+    // ------------------------------
     const firestoreUpdates: any = {};
     const bucket = admin.storage().bucket();
     
@@ -146,7 +179,6 @@ router.patch("/:id", async (req, res) => {
     if (updates.stock !== undefined) {
       const updatedBookDoc = await firestore.collection("libros").doc(id).get();
       const bookData = updatedBookDoc.data();
-      const userCookie = req.signedCookies?.user; 
       if (userCookie) {
         const user = JSON.parse(userCookie);
         await logActivity(user.id, user.username, "STOCK_UPDATE", {
@@ -171,6 +203,18 @@ router.delete("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
+
+    // --- VALIDACIÓN DE PERMISOS ---
+    const userCookie = req.signedCookies?.user;
+    if (!userCookie) return res.status(401).json({ error: "No autorizado" });
+    const userSession = JSON.parse(userCookie);
+    
+    if (userSession.role !== 'owner') {
+      const userDoc = await firestore.collection("usuarios").doc(userSession.id).get();
+      const perms = userDoc.data()?.permissions || {};
+      if (perms.canDeleteBook === false) return res.status(403).json({ error: "No tienes permisos para eliminar libros." });
+    }
+    // ------------------------------
     const bucket = admin.storage().bucket();
 
     const bookDoc = await firestore.collection("libros").doc(id).get();
@@ -201,7 +245,6 @@ router.delete("/:id", async (req, res) => {
 
     await firestore.collection("libros").doc(id).delete();
 
-    const userCookie = req.signedCookies?.user;
     if (userCookie && bookTitle) {
       const user = JSON.parse(userCookie);
       await logActivity(user.id, user.username, "BOOK_DELETE", { title: bookTitle });
@@ -214,12 +257,9 @@ router.delete("/:id", async (req, res) => {
 });
 
 // NUEVA RUTA: PUENTE DE IMÁGENES
-// Evade bloqueos de antivirus, CORS y proxies corporativos sirviendo la imagen como si fuera local
 router.get("/media/*", async (req, res) => {
   try {
     const bucket = admin.storage().bucket();
-    
-    // Extraemos la ruta del archivo que el frontend está pidiendo (ej: "portadas/foto.jpg")
     const filePath = req.params[0];
     if (!filePath) return res.status(400).send("Ruta inválida");
 
@@ -228,12 +268,10 @@ router.get("/media/*", async (req, res) => {
 
     if (!exists) return res.status(404).send("Imagen no encontrada");
 
-    // Obtenemos el tipo de imagen original y forzamos una caché súper agresiva (1 año)
     const [metadata] = await file.getMetadata();
     res.setHeader("Content-Type", metadata.contentType || "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=31536000");
 
-    // Conectamos el bucket directamente con el navegador del usuario
     file.createReadStream().pipe(res);
   } catch (error) {
     console.error("Error sirviendo imagen:", error);

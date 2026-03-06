@@ -82,13 +82,15 @@ export default function Catalog({
                 <ShoppingCart className="w-5 h-5 shrink-0" />
                 <span>Vender</span>
               </button>
-              <button
-                onClick={onAddBook}
-                className="bg-[var(--color-primary)] text-white px-4 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex-1 sm:flex-none text-sm"
-              >
-                <Plus className="w-5 h-5 shrink-0" />
-                <span>Añadir Libro</span>
-              </button>
+              {(!currentUser.permissions || currentUser.permissions.canAddBook !== false || currentUser.role === 'owner') && (
+                <button
+                  onClick={onAddBook}
+                  className="bg-[var(--color-primary)] text-white px-4 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex-1 sm:flex-none text-sm"
+                >
+                  <Plus className="w-5 h-5 shrink-0" />
+                  <span>Añadir Libro</span>
+                </button>
+              )}
             </div>
           )}
         </div>

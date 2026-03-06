@@ -1,9 +1,11 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, normalizeUsername, generateEmail } from "../utils.ts";
+import { checkAuth } from "../middleware.ts"; // <-- IMPORTACIÓN DE SEGURIDAD AGREGADA
 
 const router = express.Router();
 
+// RUTA PÚBLICA (Sin checkAuth): Necesaria para las sugerencias del Login
 router.get("/suggest", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -32,6 +34,7 @@ router.get("/suggest", async (req, res) => {
   }
 });
 
+// RUTA PÚBLICA (Sin checkAuth): Necesaria para listar usuarios en el frontend del Login
 router.get("/", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -40,7 +43,6 @@ router.get("/", async (req, res) => {
     const snapshot = await firestore.collection("usuarios").get();
     let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
 
-    // CORRECCIÓN: Se usa signedCookies
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
       try {
@@ -62,7 +64,9 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.patch("/:id/password", async (req, res) => {
+// RUTAS PROTEGIDAS (Con checkAuth): Solo usuarios logueados pueden hacer esto
+
+router.patch("/:id/password", checkAuth, async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
@@ -79,7 +83,6 @@ router.patch("/:id/password", async (req, res) => {
     const authUser = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(authUser.uid, { password });
 
-    // CORRECCIÓN: Se usa signedCookies
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
@@ -94,7 +97,7 @@ router.patch("/:id/password", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", checkAuth, async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
@@ -117,7 +120,6 @@ router.post("/", async (req, res) => {
         displayName: username
       });
     } catch (createError: any) {
-      // CORRECCIÓN: Se eliminó la auto-reparación destructiva
       if (createError.code === 'auth/email-already-exists') {
         return res.status(400).json({ error: "El correo generado para este usuario ya está en uso en el sistema." });
       } else {
@@ -130,6 +132,12 @@ router.post("/", async (req, res) => {
       username_lowercase: normalizedUsername,
       email,
       role: role || 'vendedor',
+      permissions: {
+        canAddBook: true,
+        canEditStock: true,
+        canEditBook: true,
+        canDeleteBook: true
+      },
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -150,7 +158,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", checkAuth, async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
@@ -192,7 +200,7 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", checkAuth, async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
@@ -249,7 +257,7 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-router.patch("/:id/role", async (req, res) => {
+router.patch("/:id/role", checkAuth, async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
@@ -262,11 +270,41 @@ router.patch("/:id/role", async (req, res) => {
 
     await firestore.collection("usuarios").doc(id).update({ role });
     
-    // CORRECCIÓN: Se usa signedCookies
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { role: role });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+router.patch("/:id/permissions", checkAuth, async (req, res) => {
+  const firestore = getFirestore();
+  if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
+
+  try {
+    const { id } = req.params;
+    const { permission, value } = req.body;
+    
+    const userDoc = await firestore.collection("usuarios").doc(id).get();
+    if (!userDoc.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+    if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se pueden modificar permisos del Propietario" });
+
+    // Actualiza dinámicamente solo el permiso seleccionado
+    await firestore.collection("usuarios").doc(id).update({
+      [`permissions.${permission}`]: value
+    });
+    
+    const userCookie = req.signedCookies?.user;
+    if (userCookie) {
+      const adminUser = JSON.parse(userCookie);
+      await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
+        details: `Permiso ${permission} cambiado a ${value} para el usuario` 
+      });
     }
 
     res.json({ success: true });

@@ -16,6 +16,12 @@ export interface UserProfile {
   username: string;
   email: string;
   role?: 'owner' | 'admin' | 'vendedor';
+  permissions?: {
+    canAddBook: boolean;
+    canEditStock: boolean;
+    canEditBook: boolean;
+    canDeleteBook: boolean;
+  };
 }
 
 export interface SaleItem {

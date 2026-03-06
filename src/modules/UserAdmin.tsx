@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Plus, 
@@ -19,6 +19,63 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile } from '../types';
 
+// NUEVO COMPONENTE: Switch premium para permisos
+function PermissionToggle({ userId, permission, initialValue, isOwner }: { userId: string, permission: string, initialValue?: boolean, isOwner: boolean }) {
+  const [value, setValue] = useState(initialValue !== false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => { 
+    if (initialValue !== undefined) setValue(initialValue); 
+  }, [initialValue]);
+
+  if (isOwner) {
+    return (
+      <div className="flex justify-center">
+        <div className="w-10 h-6 bg-emerald-500 rounded-full flex items-center px-1 opacity-50 cursor-not-allowed">
+          <div className="w-4 h-4 bg-white rounded-full translate-x-4"></div>
+        </div>
+      </div>
+    );
+  }
+
+  const toggle = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    const newValue = !value;
+    setValue(newValue);
+    try {
+      const res = await fetch(`/api/users/${userId}/permissions`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permission, value: newValue })
+      });
+      if (!res.ok) setValue(!newValue); 
+    } catch {
+      setValue(!newValue);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex justify-center">
+      <button 
+        onClick={toggle} 
+        disabled={isLoading} 
+        className={`relative w-10 h-6 rounded-full transition-colors flex items-center px-1 shadow-inner ${value ? 'bg-[var(--color-primary)]' : 'bg-gray-300'} ${isLoading ? 'opacity-70' : ''}`}
+      >
+        {isLoading && <Loader2 className={`absolute w-3 h-3 text-white animate-spin z-10 ${value ? 'left-1.5' : 'right-1.5'}`} />}
+        <motion.div 
+          layout 
+          transition={{ type: "spring", stiffness: 700, damping: 30 }} 
+          className="w-4 h-4 bg-white rounded-full shadow-sm" 
+          style={{ x: value ? 16 : 0 }} 
+        />
+      </button>
+    </div>
+  );
+}
+
 interface UserAdminProps {
   currentUser: UserProfile;
   allUsers: UserProfile[];
@@ -31,7 +88,6 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAdminResetModalOpen, setIsAdminResetModalOpen] = useState(false);
   
-  // Estados para los dropdowns personalizados
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   const [isEditRoleDropdownOpen, setIsEditRoleDropdownOpen] = useState(false);
 
@@ -41,12 +97,19 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // CORRECCIÓN DE TYPESCRIPT: Especificamos que role puede ser cualquiera de las 3 opciones
   const [userFormData, setUserFormData] = useState({
     username: '',
     password: '',
-    role: 'vendedor' as const
+    role: 'vendedor' as 'owner' | 'admin' | 'vendedor'
   });
-  const [editUserFormData, setEditUserFormData] = useState({ username: '', role: 'vendedor' as const });
+  
+  // CORRECCIÓN DE TYPESCRIPT: Especificamos que role puede ser cualquiera de las 3 opciones
+  const [editUserFormData, setEditUserFormData] = useState({ 
+    username: '', 
+    role: 'vendedor' as 'owner' | 'admin' | 'vendedor' 
+  });
+  
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPasswords, setShowPasswords] = useState({ create: false, reset: false });
@@ -169,6 +232,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
 
   return (
     <div className="space-y-6 sm:space-y-8">
+      {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[#2D1A1A]">Administración</h2>
@@ -184,6 +248,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
         </button>
       </div>
 
+      {/* VISTA ESCRITORIO */}
       <div className="hidden md:block bg-white rounded-[2.5rem] shadow-sm border border-[#FDF2F0] overflow-visible">
         <div className="overflow-x-auto overflow-y-visible">
           <table className="w-full text-left border-collapse overflow-visible">
@@ -191,6 +256,10 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
               <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[#FDF2F0]">
                 <th className="px-8 py-6">Usuario</th>
                 <th className="px-8 py-6">Rol</th>
+                <th className="px-4 py-6 text-center leading-tight">Añadir<br/>Libro</th>
+                <th className="px-4 py-6 text-center leading-tight">Editar<br/>Stock</th>
+                <th className="px-4 py-6 text-center leading-tight">Editar<br/>Libros</th>
+                <th className="px-4 py-6 text-center leading-tight">Borrar<br/>Libros</th>
                 <th className="px-8 py-6 text-right">Acciones</th>
               </tr>
             </thead>
@@ -213,6 +282,18 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                     }`}>
                       {user.role === 'owner' ? 'Dueño' : user.role === 'admin' ? 'Administrador' : user.role}
                     </span>
+                  </td>
+                  <td className="px-4 py-6 align-middle">
+                    <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner'} />
+                  </td>
+                  <td className="px-4 py-6 align-middle">
+                    <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner'} />
+                  </td>
+                  <td className="px-4 py-6 align-middle">
+                    <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner'} />
+                  </td>
+                  <td className="px-4 py-6 align-middle">
+                    <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner'} />
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="inline-flex items-center gap-2">
@@ -262,6 +343,7 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
         </div>
       </div>
 
+      {/* VISTA MÓVIL */}
       <div className="md:hidden space-y-4">
         {visibleUsers.map((user) => (
           <div key={user.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-[#FDF2F0] space-y-4">
@@ -281,48 +363,69 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                   </span>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-1">
-                {(user.role !== 'owner' || currentUser.id === user.id) && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setSelectedUserId(user.id);
-                        setIsAdminResetModalOpen(true);
-                      }}
-                      className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
-                    >
-                      <Key className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingUser(user);
-                        setEditUserFormData({ username: user.username, role: user.role || 'vendedor' });
-                        setIsEditUserModalOpen(true);
-                      }}
-                      className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
-                    >
-                      <Edit2 className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
-                {user.role !== 'owner' && user.id !== currentUser.id && (
+            </div>
+
+            {/* Panel de Permisos Móvil */}
+            <div className="grid grid-cols-2 gap-y-4 gap-x-2 py-4 border-y border-[#FDF2F0]">
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-bold text-gray-500">Añadir Libro</span>
+                <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner'} />
+              </div>
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-bold text-gray-500">Editar Stock</span>
+                <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner'} />
+              </div>
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-bold text-gray-500">Editar Libros</span>
+                <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner'} />
+              </div>
+              <div className="flex items-center justify-between px-2">
+                <span className="text-xs font-bold text-gray-500">Borrar Libros</span>
+                <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner'} />
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-end gap-1 pt-2">
+              {(user.role !== 'owner' || currentUser.id === user.id) && (
+                <>
                   <button
                     onClick={() => {
-                      setUserToDelete(user.id);
-                      setIsDeleteModalOpen(true);
+                      setSelectedUserId(user.id);
+                      setIsAdminResetModalOpen(true);
                     }}
-                    className="p-3 bg-red-50 rounded-xl text-red-500"
+                    className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Key className="w-5 h-5" />
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={() => {
+                      setEditingUser(user);
+                      setEditUserFormData({ username: user.username, role: user.role || 'vendedor' });
+                      setIsEditUserModalOpen(true);
+                    }}
+                    className="p-3 bg-emerald-50 rounded-xl text-emerald-600"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+              {user.role !== 'owner' && user.id !== currentUser.id && (
+                <button
+                  onClick={() => {
+                    setUserToDelete(user.id);
+                    setIsDeleteModalOpen(true);
+                  }}
+                  className="p-3 bg-red-50 rounded-xl text-red-500"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
 
+      {/* MODALES */}
       <AnimatePresence>
         {isUserModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -357,12 +460,12 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                           exit={{ opacity: 0, y: -10, scale: 0.95 }}
                           className="absolute z-20 w-full bg-white rounded-2xl shadow-xl border border-[#FDF2F0] overflow-hidden p-2"
                         >
-                          {['vendedor', 'admin'].map((role) => (
+                          {(['vendedor', 'admin'] as const).map((role) => (
                             <button
                               key={role}
                               type="button"
                               onClick={() => {
-                                setUserFormData({ ...userFormData, role: role as any });
+                                setUserFormData({ ...userFormData, role: role });
                                 setIsRoleDropdownOpen(false);
                               }}
                               className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between ${
@@ -448,12 +551,12 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                             exit={{ opacity: 0, y: -10, scale: 0.95 }}
                             className="absolute z-20 w-full bg-white rounded-2xl shadow-xl border border-[#FDF2F0] overflow-hidden p-2"
                           >
-                            {['vendedor', 'admin'].map((role) => (
+                            {(['vendedor', 'admin'] as const).map((role) => (
                               <button
                                 key={role}
                                 type="button"
                                 onClick={() => {
-                                  setEditUserFormData({ ...editUserFormData, role: role as any });
+                                  setEditUserFormData({ ...editUserFormData, role: role });
                                   setIsEditRoleDropdownOpen(false);
                                 }}
                                 className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between ${

@@ -41,7 +41,7 @@ async function startServer() {
   app.use("/api/sales", checkAuth, salesRouter);
   app.use("/api/clients", checkAuth, clientsRouter);
   app.use("/api/debts", checkAuth, debtsRouter);
-  app.use("/api/users", checkAuth, usersRouter);
+app.use("/api/users", usersRouter);
   app.use("/api/stats", checkAuth, statsRouter);
   app.use("/api/logs", checkAuth, logsRouter);
   app.use('/api/ai', checkAuth, aiRoutes);
