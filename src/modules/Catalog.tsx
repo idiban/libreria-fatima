@@ -43,7 +43,8 @@ export default function Catalog({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      {/* HEADER CON BUSCADOR CENTRADO Y NOTORIO */}
+      <div className="flex flex-col lg:grid lg:grid-cols-3 lg:items-center gap-6">
         <div>
           <h2 className="text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">
             {currentUser ? 'Venta de Libros' : 'Nuestro Catálogo'}
@@ -53,13 +54,14 @@ export default function Catalog({
           </p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        {/* BUSCADOR CENTRADO */}
+        <div className="flex justify-center w-full">
+          <div className="relative w-full max-w-2xl">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
               placeholder="Buscar por título, autor o categoría..."
-              className="pl-12 pr-10 py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
+              className="pl-12 pr-10 py-4 bg-white border-2 border-[var(--color-warm-surface)] rounded-2xl text-base w-full focus:ring-4 focus:ring-[var(--color-primary)]/10 focus:border-[var(--color-primary)] transition-all shadow-md font-bold"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -68,13 +70,15 @@ export default function Catalog({
                 onClick={() => setSearchTerm('')}
                 className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             )}
           </div>
-          
+        </div>
+        
+        <div className="flex items-center justify-end gap-2">
           {currentUser && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full lg:w-auto">
               <button
                 onClick={() => onSaleClick(null)}
                 className="bg-[var(--color-primary)] text-white px-4 py-3 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-[var(--color-primary)]/20 hover:scale-105 transition-all flex-1 sm:flex-none text-sm"
@@ -111,7 +115,6 @@ export default function Catalog({
             key={book.id}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            /* MODIFICACIÓN AQUÍ: Se añadió flex flex-col para hacer que todas las tarjetas midan lo mismo */
             className="bg-white rounded-[2rem] p-3 sm:p-4 shadow-sm hover:shadow-xl transition-all group relative border border-transparent hover:border-gray-100 cursor-pointer flex flex-col"
             onClick={() => {
               if (currentUser) {
@@ -129,8 +132,6 @@ export default function Catalog({
                   className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
                   loading="lazy"
                 />
-
-                
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-200">
                   <BookOpen className="w-12 h-12" />
@@ -138,7 +139,6 @@ export default function Catalog({
               )}
             </div>
             
-            {/* MODIFICACIÓN AQUÍ: Se reorganizó el texto para que el bloque de precio se vaya abajo automáticamente */}
             <div className="flex flex-col flex-1">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-sm sm:text-base font-bold leading-tight group-hover:text-[var(--color-primary)] transition-colors line-clamp-2 text-[var(--color-primary)] flex-1">{book.title}</h3>
