@@ -88,7 +88,7 @@ router.post("/scan-book", async (req, res) => {
   try {
     const { cover_url, contraportada_url } = req.body;
     const ai = new GoogleGenAI({ apiKey });
-    const categoriasPermitidas = ["Espiritualidad", "Sagradas Escrituras", "Filosofía y Teología", "Magisterio y Catecismo", "Crisis de la Iglesia", "Santísima Virgen María", "Vida de Santos", "Historia y Literatura", "Monseñor Lefebvre"];
+    const categoriasPermitidas = ["Espiritualidad", "Sagradas Escrituras", "Filosofía y Teología", "Magisterio y Catecismo", "Crisis de la Iglesia", "Santísima Virgen María", "Vida de Santos", "Historia y Literatura"];
     const promptInstruction = `Analiza estas imágenes de un libro (portada y/o contraportada). Extrae el título, autor, categoría y descripción completa. IMPORTANTE: 1) En el campo 'title' pon ÚNICAMENTE el título principal del libro, ignora subtítulos or textos secundarios largos. 2) Tanto el título como el autor deben usar mayúsculas y minúsculas correctamente (formato de nombre propio), NUNCA todo en mayúsculas. 3) OBLIGATORIO: Para la 'category', DEBES elegir ESTRICTAMENTE una de esta lista: ${categoriasPermitidas.join(', ')}. Si el libro no encaja perfecto, elige la más cercana. Responde estrictamente en JSON.`;
 
     const parts: any[] = [{ text: promptInstruction }];

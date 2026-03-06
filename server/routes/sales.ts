@@ -9,7 +9,8 @@ router.post("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
+    // 1. AGREGADO: clientRut en la desestructuración
+    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const bookItems = items.filter((item: any) => !item.bookId.startsWith('custom_'));
@@ -40,12 +41,13 @@ router.post("/", async (req, res) => {
       const currentDebt = clientDoc?.exists ? (clientDoc.data().totalDebt || 0) : 0;
       const currentCredit = clientDoc?.exists ? (clientDoc.data().creditBalance || 0) : 0;
       
-      // Matemática limpia: (Costo Total de la venta) - (Efectivo Real Pagado) = Impacto en la cuenta
       const netChange = Number(total) - Number(amountPaid);
       const finalNetBalance = currentDebt - currentCredit + netChange;
 
+      // 2. AGREGADO: rut en el objeto de actualización del cliente
       const clientUpdate: any = {
         name: clientName,
+        rut: clientRut || '', // Guardamos el RUT en la colección clientes
         totalDebt: finalNetBalance > 0 ? finalNetBalance : 0,
         creditBalance: finalNetBalance < 0 ? Math.abs(finalNetBalance) : 0
       };
@@ -65,8 +67,9 @@ router.post("/", async (req, res) => {
         items,
         clientId: finalClientId,
         clientName,
+        clientRut: clientRut || '', // 3. AGREGADO: rut en la colección ventas
         total: Number(total),
-        amountPaid: Number(amountPaid), // AQUÍ LA MAGIA: Guarda SÓLO el efectivo real entregado
+        amountPaid: Number(amountPaid),
         sellerId,
         sellerName,
         paymentMethod: paymentMethod || [],
@@ -101,7 +104,8 @@ router.put("/:id", async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { items, clientId, clientName, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
+    // 4. AGREGADO: clientRut en la desestructuración del PUT
+    const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
@@ -170,7 +174,8 @@ router.put("/:id", async (req, res) => {
           transaction.update(oldClientRef, { 
             totalDebt: finalBal > 0 ? finalBal : 0,
             creditBalance: finalBal < 0 ? Math.abs(finalBal) : 0,
-            name: clientName
+            name: clientName,
+            rut: clientRut || '' // 5. AGREGADO: Actualizar rut en cliente existente
           });
         }
       } else {
@@ -187,12 +192,13 @@ router.put("/:id", async (req, res) => {
         const finalNewBal = (newClientDoc?.exists ? (newClientDoc.data().totalDebt - newClientDoc.data().creditBalance) : 0) + newDebt;
         const newClientUpdate = {
           name: clientName,
+          rut: clientRut || '', // 6. AGREGADO: rut para nuevo cliente o cambio de cliente
           totalDebt: finalNewBal > 0 ? finalNewBal : 0,
           creditBalance: finalNewBal < 0 ? Math.abs(finalNewBal) : 0
         };
 
         if (!clientId) {
-          transaction.set(newClientRef, { ...newClientUpdate, name_lowercase: clientName.toLowerCase(), createdAt: admin.firestore.FieldValue.serverTimestamp() });
+          transaction.set(newClientRef, { ...newClientUpdate, name_lowercase: clientName.toLowerCase(), createdAt: admin.FieldValue.serverTimestamp() });
         } else {
           transaction.update(newClientRef, newClientUpdate);
         }
@@ -202,6 +208,7 @@ router.put("/:id", async (req, res) => {
         items, 
         clientId: finalClientId, 
         clientName, 
+        clientRut: clientRut || '', // 7. AGREGADO: Actualizar rut en la venta
         total: Number(total), 
         amountPaid: Number(amountPaid), 
         sellerId, 
@@ -226,6 +233,7 @@ router.put("/:id", async (req, res) => {
     res.status(400).json({ error: (error as Error).message });
   }
 });
+
 
 router.delete("/:id", async (req, res) => {
   const firestore = getFirestore();

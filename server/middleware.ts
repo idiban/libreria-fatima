@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express"; // <-- ESTO FALTABA
+import type { Request, Response, NextFunction } from "express"; // <-- AQUÍ ESTÁ LA MAGIA (import type)
 
 export const checkAuth = (req: Request, res: Response, next: NextFunction) => {
   if (!req.signedCookies.user) { 

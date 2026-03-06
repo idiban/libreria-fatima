@@ -108,7 +108,12 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
     <div className="space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
-          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-2 text-[var(--color-primary)]">Gestión de libros</h2>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-[var(--color-primary)]">Gestión de libros</h2>
+            <span className="px-3 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-black rounded-full border border-[var(--color-primary)]/20 shadow-sm">
+              {searchTerm ? `${filteredBooks.length} de ${books.length}` : `${books.length} total`}
+            </span>
+          </div>
           <p className="text-sm sm:text-base text-gray-500 font-medium">Administra y organiza los libros de tu librería.</p>
         </div>
         
@@ -399,12 +404,16 @@ function BookRow({ book, onEditBook, onDeleteRequest, canEditBook = true, canDel
           </div>
           {/* min-w-0 y max-w evitan que textos largos deformen la columna */}
           <div className="min-w-0 max-w-[200px] xl:max-w-[350px]">
-            <p 
-              className="font-bold text-[var(--color-primary)] truncate text-base mb-0.5 group-hover:text-[var(--color-primary-hover)] transition-colors" 
-              title={book.title}
-            >
-              {book.title}
-            </p>
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="font-bold text-[var(--color-primary)] truncate text-base group-hover:text-[var(--color-primary-hover)] transition-colors" title={book.title}>
+                {book.title}
+              </p>
+              {book.tomo && (
+                <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[9px] px-1.5 py-0.5 rounded flex items-center">
+                  {book.tomo}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-400 font-bold truncate" title={book.author}>
               {book.author}
             </p>

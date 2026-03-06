@@ -31,6 +31,7 @@ router.get("/", async (req, res) => {
         price: data.precio || 0,
         stock: data.stock || 0,
         category: data.categoria || "",
+        tomo: data.tomo || "",
         description: data.descripcion || "",
         cover_url: getRealUrl(data.portada_url),
         contraportada_url: getRealUrl(data.contraportada_url),
@@ -61,7 +62,7 @@ router.post("/", async (req, res) => {
     }
     // ------------------------------
 
-    const { title, author, price, stock, category, description, cover_url, contraportada_url } = req.body;
+    const { title, tomo, author, price, stock, category, description, cover_url, contraportada_url } = req.body;
     
     const finalCoverUrl = await uploadImageToStorage(cover_url, 'portadas');
     const finalContraportadaUrl = contraportada_url ? await uploadImageToStorage(contraportada_url, 'contraportadas') : null;
@@ -72,6 +73,7 @@ router.post("/", async (req, res) => {
       precio: price,
       stock: stock,
       categoria: category || "",
+      tomo: tomo || "",
       descripcion: description || "",
       portada_url: finalCoverUrl,
       contraportada_url: finalContraportadaUrl,
@@ -148,6 +150,7 @@ router.patch("/:id", async (req, res) => {
     if (updates.price !== undefined) firestoreUpdates.precio = updates.price;
     if (updates.stock !== undefined) firestoreUpdates.stock = updates.stock;
     if (updates.category !== undefined) firestoreUpdates.categoria = updates.category;
+    if (updates.tomo !== undefined) firestoreUpdates.tomo = updates.tomo;
     if (updates.description !== undefined) firestoreUpdates.descripcion = updates.description;
     
     // LÓGICA CORREGIDA PARA PORTADA

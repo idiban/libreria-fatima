@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Edit2, Check, Loader2, History, User, Search, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Edit2, Check, Loader2, History, User, Search, Trash2, AlertTriangle, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ClientRecord } from '../types';
 
@@ -37,6 +37,16 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
     };
     if (client?.id) fetchHistory();
   }, [client?.id]);
+
+  const formatRut = (rut: string) => {
+    if (!rut) return '';
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedBody}-${dv}`;
+  };
 
   const handleSaveName = async () => {
     if (!name.trim() || name === client.name) { setIsEditing(false); return; }
@@ -152,6 +162,14 @@ export default function ClientDetailModal({ client, onClose, onUpdate }: ClientD
                   <div className="flex items-center gap-3"><h2 className="text-2xl sm:text-3xl font-black text-[var(--color-primary)] leading-tight truncate">{name}</h2><button onClick={() => setIsEditing(true)} className="p-1.5 text-gray-400 hover:text-[var(--color-primary)] transition-all"><Edit2 className="w-4 h-4" /></button></div>
                 )}
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Perfil del Cliente</p>
+                
+                {/* RUT DEL CLIENTE AGREGADO AQUÍ */}
+                {client.rut && (
+                  <div className="flex items-center gap-1.5 mt-1 opacity-70">
+                    <Fingerprint className="w-3 h-3 text-gray-400" />
+                    <span className="text-[10px] font-black text-gray-500 tracking-wider">RUT: {formatRut(client.rut)}</span>
+                  </div>
+                )}
               </div>
               <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors shadow-sm shrink-0"><X className="w-6 h-6 text-gray-400" /></button>
             </div>

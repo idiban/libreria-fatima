@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, Search, Calendar, User } from 'lucide-react';
+import { History, Search, Calendar, User, Fingerprint } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SaleRecord, UserProfile } from '../types';
 import EditSaleModal from './SaleModal';
@@ -40,6 +40,16 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
+  const formatRut = (rut: string) => {
+    if (!rut) return '';
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedBody}-${dv}`;
+  };
+
   const formatDate = (date: any) => {
     const d = new Date(date);
     return d.toLocaleString('es-CL', {
@@ -56,9 +66,14 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const clientName = sale.clientName || '';
     const sellerName = sale.sellerName || '';
+    const paymentMethods = Array.isArray(sale.paymentMethod) ? sale.paymentMethod.join(' ') : (sale.paymentMethod || '');
+    // Convertimos el total a string para permitir la búsqueda
+    const totalAmount = (sale.total ?? 0).toString();
 
     return clientName.toLowerCase().includes(lowerCaseSearchTerm) ||
            sellerName.toLowerCase().includes(lowerCaseSearchTerm) ||
+           paymentMethods.toLowerCase().includes(lowerCaseSearchTerm) ||
+           totalAmount.includes(lowerCaseSearchTerm) ||
            sale.items.some(i => (i.title || '').toLowerCase().includes(lowerCaseSearchTerm));
   });
 
@@ -74,7 +89,7 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por cliente, vendedor o libro..."
+            placeholder="Buscar por cliente, monto, pago o libro..."
             className="pl-12 pr-6 py-3 bg-white border border-[var(--color-warm-surface)] rounded-2xl text-sm w-full md:w-80 focus:ring-2 focus:ring-[var(--color-primary)] transition-all shadow-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -113,11 +128,19 @@ export default function SalesHistory({ currentUser }: SalesHistoryProps) {
                     </div>
                     <div>
                       <h3 className="font-bold text-[var(--color-primary)] leading-tight">{formatDate(sale.timestamp)}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <User className="w-3 h-3 text-gray-400" />
-                        <p className="text-xs text-gray-500 font-medium">{sale.clientName}</p>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3.5 h-3.5 text-gray-400" />
+                          <p className="text-xs text-gray-600 font-bold">{sale.clientName}</p>
+                        </div>
+                        {sale.clientRut && (
+                          <div className="flex items-center gap-1.5 bg-gray-100 px-2 py-0.5 rounded-md">
+                            <Fingerprint className="w-3 h-3 text-gray-400" />
+                            <p className="text-[10px] text-gray-500 font-black">{formatRut(sale.clientRut)}</p>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-1">
                         <div className="w-3 h-3 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-white text-[6px] font-bold">
                           {sale.sellerName ? sale.sellerName[0].toUpperCase() : '?'}
                         </div>

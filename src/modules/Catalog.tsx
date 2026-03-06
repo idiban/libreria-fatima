@@ -140,8 +140,15 @@ export default function Catalog({
             
             {/* MODIFICACIÓN AQUÍ: Se reorganizó el texto para que el bloque de precio se vaya abajo automáticamente */}
             <div className="flex flex-col flex-1">
-              <h3 className="text-sm sm:text-base font-bold leading-tight group-hover:text-[var(--color-primary)] transition-colors line-clamp-2 text-[var(--color-primary)]">{book.title}</h3>
-              <p className="text-gray-400 font-medium text-[10px] sm:text-xs truncate mt-0.5">{book.author}</p>
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-sm sm:text-base font-bold leading-tight group-hover:text-[var(--color-primary)] transition-colors line-clamp-2 text-[var(--color-primary)] flex-1">{book.title}</h3>
+                {book.tomo && (
+                  <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[10px] px-2 py-0.5 rounded-md mt-0.5">
+                    {book.tomo}
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-400 font-medium text-[10px] sm:text-xs truncate mt-1">{book.author}</p>
               
               <div className="flex flex-col mt-auto pt-3 gap-1.5">
                 <div className="flex items-center justify-between gap-2">

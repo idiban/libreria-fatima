@@ -25,6 +25,7 @@ interface BookModalProps {
 export default function BookModal({ isOpen, onClose, editingBook, onSave, books }: BookModalProps) {
   const [formData, setFormData] = useState({
     title: '',
+    tomo: '',
     author: '',
     price: 0,
     stock: 0,
@@ -40,6 +41,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   const [errors, setErrors] = useState({ title: false, author: false, price: false, stock: false, category: false });
   const [validationError, setValidationError] = useState<string | null>(null);
   const [showPriceConfirm, setShowPriceConfirm] = useState(false);
+  const [isBackLoading, setIsBackLoading] = useState(false);
 
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +56,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     if (!isOpen) {
       setErrors({ title: false, author: false, price: false, stock: false, category: false });
       setValidationError(null);
+      setIsBackLoading(false);
     }
   }, [isOpen]);
 
@@ -83,7 +86,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         let width = img.width;
         let height = img.height;
 
-        // MEJORA DE CALIDAD: Aumentamos los límites máximos para conservar nitidez de texto
         const MAX_WIDTH = 1200; 
         const MAX_HEIGHT = 1600;
 
@@ -104,7 +106,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         
-        // MEJORA DE CALIDAD: Guardamos con un 90% de calidad en lugar del 80%
         resolve(canvas.toDataURL('image/jpeg', 0.90));
       };
     });
@@ -152,6 +153,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
       setFormData(prev => ({ ...prev, cover_url: '' }));
     } else {
       setFormData(prev => ({ ...prev, contraportada_url: '' }));
+      setIsBackLoading(false);
     }
   };
 
@@ -164,6 +166,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         if (side === 'front') {
           setFormData(prev => ({ ...prev, cover_url: base64 }));
         } else {
+          setIsBackLoading(true);
           setFormData(prev => ({ ...prev, contraportada_url: base64 }));
         }
       };
@@ -176,6 +179,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
     if (editingBook) {
       setFormData({
         title: editingBook.title,
+        tomo: editingBook.tomo || '',
         author: editingBook.author,
         price: editingBook.price,
         stock: editingBook.stock,
@@ -184,9 +188,12 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
         cover_url: editingBook.cover_url || '',
         contraportada_url: editingBook.contraportada_url || ''
       });
+      if (editingBook.contraportada_url) setIsBackLoading(true);
     } else {
+      setIsBackLoading(false);
       setFormData({
         title: '',
+        tomo: '',
         author: '',
         price: 0,
         stock: 0,
@@ -201,12 +208,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'price' || name === 'stock') {
-      const sanitizedValue = value.replace(/^0+(?!$)/, '');
+      const sanitizedValue = value.replace(/\D/g, '').replace(/^0+(?!$)/, '');
       const numValue = sanitizedValue === '' ? 0 : parseInt(sanitizedValue, 10);
-      
-      if (e.target instanceof HTMLInputElement) {
-        e.target.value = sanitizedValue || '0';
-      }
 
       setFormData(prev => ({
         ...prev,
@@ -335,7 +338,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Portada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.cover_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
                             {formData.cover_url ? (
-                              <img src={formData.cover_url} alt="" className="w-full h-full object-contain bg-black/5" />
+                              <img key={formData.cover_url} src={formData.cover_url} alt="" className="w-full h-full object-contain bg-black/5" />
                             ) : (
                               <div className="flex flex-col items-center gap-2">
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm" onClick={() => frontInputRef.current?.click()}>
@@ -346,7 +349,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             )}
                           </div>
                           
-                          {/* BOTONES MOVIDOS DEBAJO DE LA IMAGEN DE PORTADA */}
+                          {/* BOTONES PORTADA */}
                           <div className="flex gap-1 w-full mt-1">
                             <button 
                               type="button"
@@ -380,8 +383,26 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                         <div className="flex flex-col gap-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Contraportada</label>
                           <div className={`aspect-[3/4] bg-gray-100 border-2 border-dashed border-gray-200 rounded-2xl sm:rounded-3xl overflow-hidden group relative ${!formData.contraportada_url ? 'flex flex-col items-center justify-center gap-3' : ''}`}>
+                            <AnimatePresence>
+                              {isBackLoading && formData.contraportada_url && (
+                                <motion.div 
+                                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                  className="absolute inset-0 z-10 bg-gray-100 flex flex-col items-center justify-center gap-2 animate-pulse"
+                                >
+                                  <Loader2 className="w-8 h-8 text-gray-300 animate-spin" />
+                                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cargando...</span>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
                             {formData.contraportada_url ? (
-                              <img src={formData.contraportada_url} alt="" className="w-full h-full object-contain bg-black/5" />
+                              <img 
+                                key={formData.contraportada_url} 
+                                src={formData.contraportada_url} 
+                                alt="" 
+                                className="w-full h-full object-contain bg-black/5"
+                                onLoad={() => setIsBackLoading(false)}
+                                onError={() => setIsBackLoading(false)} 
+                              />
                             ) : (
                               <div className="flex flex-col items-center gap-2">
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white flex items-center justify-center text-gray-300 group-hover:text-[var(--color-primary)] shadow-sm" onClick={() => backInputRef.current?.click()}>
@@ -392,7 +413,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                             )}
                           </div>
                           
-                          {/* BOTONES MOVIDOS DEBAJO DE LA IMAGEN DE CONTRAPORTADA */}
+                          {/* BOTONES CONTRAPORTADA */}
                           <div className="flex gap-1 w-full mt-1">
                             <button 
                               type="button"
@@ -456,6 +477,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
 
                     {/* Right Column: Fields */}
                     <div className="space-y-4 sm:space-y-6">
+                      
                       <div className="space-y-2">
                         <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Título</label>
                         <input
@@ -464,7 +486,6 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.title ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base`}
                           value={formData.title}
                           onChange={(e) => {
-                            e.target.value = e.target.value.replace(/[0-9]/g, '');
                             handleInputChange(e);
                             if (errors.title) setErrors(prev => ({ ...prev, title: false }));
                           }}
@@ -475,6 +496,20 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           </p>
                         )}
                       </div>
+
+                      {/* Campo Adicional debajo del título y mucho más compacto */}
+                      <div className="space-y-1.5 w-[60%] sm:w-[200px]">
+                        <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Adicional <span className="text-gray-300 font-medium">(Opc.)</span></label>
+                        <input
+                          type="text"
+                          name="tomo"
+                          placeholder="Ej. Tomo 1, Tapa dura"
+                          className="w-full px-3 py-2 sm:px-4 sm:py-2.5 bg-gray-100 border-2 border-transparent focus:border-[var(--color-primary)] rounded-lg sm:rounded-xl outline-none transition-all font-bold text-xs sm:text-sm"
+                          value={formData.tomo}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Autor</label>
                         <input
@@ -488,16 +523,19 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           }}
                         />
                       </div>
+
                       <div className="grid grid-cols-2 gap-4 sm:gap-6">
                         <div className="space-y-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Precio</label>
                           <div className="relative">
+                            <span className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 font-black text-gray-400 text-lg sm:text-xl">$</span>
                             <input
                               ref={priceInputRef}
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               name="price"
-                              className={`w-full pl-4 sm:pl-5 pr-10 sm:pr-12 py-3 sm:py-4 bg-gray-100 border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
-                              value={formData.price}
+                              className={`w-full pl-8 sm:pl-10 pr-10 sm:pr-12 py-3 sm:py-4 bg-gray-100 border-2 ${errors.price ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl`}
+                              value={formData.price === 0 ? '' : formData.price.toLocaleString('es-CL')}
                               onChange={(e) => {
                                 handleInputChange(e);
                                 if (errors.price) setErrors(prev => ({ ...prev, price: false }));
@@ -523,6 +561,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           />
                         </div>
                       </div>
+
                       <div className="space-y-2">
                         <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Categoría</label>
                         <input
@@ -537,6 +576,7 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books 
                           }}
                         />
                       </div>
+
                       <div className="space-y-2">
                         <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Descripción</label>
                         <textarea

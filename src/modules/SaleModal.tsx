@@ -13,7 +13,8 @@ import {
   PiggyBank,
   Wallet,
   Landmark,
-  Percent
+  Percent,
+  Fingerprint
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BookItem, UserProfile, SaleItem, SaleRecord } from '../types';
@@ -30,6 +31,8 @@ interface SaleModalProps {
 export default function SaleModal({ isOpen, onClose, sale, initialBook, currentUser, onSaleSuccess }: SaleModalProps) {
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState<string | null>(null);
+  const [clientRut, setClientRut] = useState('');
+  const [isRutInvalid, setIsRutInvalid] = useState(false); // Nuevo estado para validación
   const [clientSuggestions, setClientSuggestions] = useState<any[]>([]);
   const [allClients, setAllClients] = useState<any[]>([]);
   const [isClientTyping, setIsClientTyping] = useState(false);
@@ -65,6 +68,38 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  // Función para formatear RUT
+  const formatRut = (rut: string) => {
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 2) return clean;
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedBody}-${dv}`;
+  };
+
+  // Función para validar RUT (Módulo 11)
+  const validateRut = (rut: string) => {
+    const clean = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (clean.length < 8) return false;
+
+    const body = clean.slice(0, -1);
+    const dv = clean.slice(-1);
+
+    let sum = 0;
+    let multiplier = 2;
+
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body[i]) * multiplier;
+      multiplier = multiplier === 7 ? 2 : multiplier + 1;
+    }
+
+    const expectedDv = 11 - (sum % 11);
+    const dvChar = expectedDv === 11 ? '0' : expectedDv === 10 ? 'K' : expectedDv.toString();
+
+    return dv === dvChar;
   };
 
   const normalizeText = (text: string) => {
@@ -133,11 +168,15 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
       setAllBooks([]);
       setAllClients([]);
       setIsClientTyping(false);
+      setIsRutInvalid(false);
     } else {
       if (sale) {
         setItems(sale.items || []);
         setClientName(sale.clientName || '');
         setClientId(sale.clientId || null);
+        const formatted = sale.clientRut ? formatRut(sale.clientRut) : '';
+        setClientRut(formatted);
+        setIsRutInvalid(formatted ? !validateRut(formatted) : false);
         setAmountPaid(sale.amountPaid || 0);
         setIsClientSelected(true);
         setIsClientTyping(false);
@@ -148,6 +187,8 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
         setItems(initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []);
         setClientName('');
         setClientId(null);
+        setClientRut('');
+        setIsRutInvalid(false);
         setAmountPaid(0);
         setSelectedClientDebt(null);
         setSelectedClientCredit(0);
@@ -291,6 +332,11 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
       return;
     }
 
+    // No permitir si el RUT está mal
+    if (paymentMethods.includes('transferencia') && clientRut && isRutInvalid) {
+      return;
+    }
+
     if (!sale) {
       if (amountPaid > cashNeeded && !showOverpayConfirm) {
         setShowOverpayConfirm(true);
@@ -318,6 +364,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
           items,
           clientId,
           clientName,
+          clientRut: clientRut.replace(/\./g, ''), // Guardar limpio
           amountPaid,
           total, 
           sellerId: currentUser.id,
@@ -601,6 +648,8 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                         const valorSinNumeros = e.target.value.replace(/[0-9]/g, '');
                         setClientName(capitalizeWords(valorSinNumeros));
                         setClientId(null);
+                        setClientRut('');
+                        setIsRutInvalid(false);
                         if (clientNameError) setClientNameError(false);
                         setSelectedClientDebt(null);
                         setSelectedClientCredit(0);
@@ -622,6 +671,9 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                               onClick={() => {
                                 setClientName(c.name);
                                 setClientId(c.id);
+                                const formatted = c.rut ? formatRut(c.rut) : '';
+                                setClientRut(formatted);
+                                setIsRutInvalid(formatted ? !validateRut(formatted) : false);
                                 setSelectedClientDebt(c.totalDebt || 0);
                                 setSelectedClientCredit(c.creditBalance || 0);
                                 setIsClientSelected(true);
@@ -707,6 +759,32 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                       </div>
                       {paymentMethodError && <p className="text-red-500 text-[9px] font-bold text-center mt-1">Selecciona el método de pago</p>}
                     </div>
+
+                    {paymentMethods.includes('transferencia') && (
+                      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
+                        <label className={`text-[10px] font-black uppercase tracking-widest ml-1 transition-colors ${isRutInvalid ? 'text-red-500' : 'text-gray-400'}`}>
+                          RUT del Cliente {isRutInvalid && '— Inválido'}
+                        </label>
+                        <div className="relative">
+                          <Fingerprint className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${isRutInvalid ? 'text-red-400' : 'text-gray-400'}`} />
+                          <input
+                            type="text"
+                            placeholder="Ej: 12.345.678-9"
+                            className={`w-full pl-9 pr-3 py-2.5 rounded-xl outline-none transition-all font-bold text-sm border-2 ${
+                              isRutInvalid 
+                                ? 'bg-red-50 border-red-400 text-red-700' 
+                                : 'bg-blue-50 border-transparent focus:border-blue-400 text-blue-700'
+                            }`}
+                            value={clientRut}
+                            onChange={(e) => {
+                              const formatted = formatRut(e.target.value);
+                              setClientRut(formatted);
+                              setIsRutInvalid(formatted ? !validateRut(formatted) : false);
+                            }}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
 
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Notas de la Venta</label>
@@ -810,7 +888,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                 </button>
                 <button
                   onClick={handleFinalize}
-                  disabled={isLoading || amountPaid < 0 || !clientName.trim() || items.length === 0} 
+                  disabled={isLoading || amountPaid < 0 || !clientName.trim() || items.length === 0 || (paymentMethods.includes('transferencia') && clientRut !== '' && isRutInvalid)} 
                   className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-3.5 px-4 rounded-xl font-black text-sm shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                 >
                   {isLoading ? (

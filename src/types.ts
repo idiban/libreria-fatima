@@ -1,6 +1,7 @@
 export interface BookItem {
   id: string;
   title: string;
+  tomo?: string;
   author: string;
   price: number;
   stock: number;

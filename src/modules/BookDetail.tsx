@@ -147,11 +147,20 @@ export default function BookDetail({ book, onBack, currentUser, onSaleClick }: B
             <div className="flex-1 w-full flex flex-col">
               
               <div className="mb-2">
-                {book.category && (
-                  <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600 mb-4">
-                    {book.category}
-                  </span>
-                )}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {book.category && (
+                    <span className="inline-block px-4 py-1.5 bg-emerald-50 rounded-full text-xs font-black uppercase tracking-widest text-emerald-600">
+                      {book.category}
+                    </span>
+                  )}
+                  {/* Etiqueta del Tomo al lado de la categoría */}
+                  {book.tomo && (
+                    <span className="inline-flex items-center px-4 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-black tracking-wider text-amber-700">
+                      {book.tomo}
+                    </span>
+                  )}
+                </div>
+                
                 <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#2D1A1A] leading-tight mb-3 sm:mb-4">{book.title}</h1>
                 <p className="text-lg text-gray-400 font-bold mb-4">{book.author}</p>
                 
