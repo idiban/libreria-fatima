@@ -165,10 +165,10 @@ export default function Catalog({
                 )}
               </div>
               
-              <div className="flex flex-wrap lg:flex-col gap-2">
+              <div className="grid grid-cols-2 lg:flex lg:flex-col gap-2">
                 <button
                   onClick={() => setSelectedCategories([])}
-                  className={`text-left px-4 py-2.5 rounded-xl text-[11px] sm:text-xs font-black transition-all ${
+                  className={`col-span-2 lg:col-span-1 text-center lg:text-left px-4 py-2.5 rounded-xl text-[11px] sm:text-xs font-black transition-all ${
                     selectedCategories.length === 0
                       ? 'bg-[var(--color-primary)] text-white shadow-md shadow-[var(--color-primary)]/20'
                       : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 shadow-sm'
@@ -183,7 +183,7 @@ export default function Catalog({
                     <button
                       key={category}
                       onClick={() => toggleCategory(category)}
-                      className={`text-left px-4 py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all border ${
+                      className={`text-center lg:text-left px-2 sm:px-4 py-2.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all border flex items-center justify-center lg:justify-start leading-tight min-h-[44px] lg:min-h-0 ${
                         isSelected 
                           ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)]/30 text-[var(--color-primary)]' 
                           : 'bg-white border-transparent text-gray-500 hover:bg-gray-50 border-[var(--color-warm-surface)] shadow-sm'
