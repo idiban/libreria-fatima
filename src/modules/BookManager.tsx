@@ -33,6 +33,12 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
   // Nuevos estados para el ordenamiento
   const [sortColumn, setSortColumn] = useState<SortColumn>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [displayLimit, setDisplayLimit] = useState(20);
+
+  // Resetear el límite cuando cambia la búsqueda o el ordenamiento
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [searchTerm, sortColumn, sortDirection]);
 
   const normalizeText = (text: string) => {
     if (!text) return '';
@@ -82,6 +88,9 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
     return normalizeText(b.title).includes(normalizedSearch) || 
            normalizeText(b.author).includes(normalizedSearch);
   });
+
+  const visibleBooks = filteredBooks.slice(0, displayLimit);
+  const hasMore = filteredBooks.length > displayLimit;
 
   const handleDeleteBook = async () => {
     if (!bookToDelete) return;
@@ -193,7 +202,7 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-warm-surface)]">
-              {filteredBooks.map((book) => (
+              {visibleBooks.map((book) => (
                 <BookRow 
                   key={book.id} 
                   book={book} 
@@ -211,7 +220,7 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
 
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
-        {filteredBooks.map((book) => (
+        {visibleBooks.map((book) => (
           <div key={book.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] space-y-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-20 rounded-xl bg-gray-50 overflow-hidden shrink-0 border border-gray-100 shadow-sm">
@@ -279,6 +288,18 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
           </div>
         ))}
       </div>
+
+      {/* Botón Ver Más */}
+      {hasMore && (
+        <div className="flex justify-center py-4">
+          <button
+            onClick={() => setDisplayLimit(prev => prev + 20)}
+            className="px-8 py-3 bg-white border border-[var(--color-warm-surface)] text-[var(--color-primary)] font-black rounded-2xl shadow-sm hover:bg-gray-50 transition-all text-sm"
+          >
+            Cargar más libros ({filteredBooks.length - displayLimit} restantes)
+          </button>
+        </div>
+      )}
 
       <ConfirmationModal
         isOpen={!!bookToDelete}

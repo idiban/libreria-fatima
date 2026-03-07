@@ -375,7 +375,7 @@ export default function App() {
       case 'logs':
         return <ActivityLogs logs={logs} loading={!hasFetchedLogs} onRefresh={() => fetchLogs(true)} />;
       case 'sales':
-        return <SalesHistory currentUser={currentUser!} sales={sales} loading={!hasFetchedSales} onRefresh={() => fetchSales(true)} />;
+        return <SalesHistory currentUser={currentUser!} sales={sales} clients={clients} loading={!hasFetchedSales} onRefresh={() => fetchSales(true)} />;
       case 'clients':
         return <ClientsList clients={clients} loading={!hasFetchedClients} onRefresh={() => fetchClients(true)} />;
       case 'debtors':
@@ -476,6 +476,7 @@ export default function App() {
           }}
           initialBook={saleBook}
           currentUser={currentUser}
+          clients={clients}
           onSaleSuccess={() => {
             fetchBooks();
             fetchSales(true);

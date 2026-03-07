@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { BookOpen, Edit2, ShoppingCart, Plus, Search, X, Filter, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem, UserProfile } from '../types';
@@ -26,9 +26,14 @@ export default function Catalog({
   onSaleClick,
   onBookClick
 }: CatalogProps) {
-  // Estado para las categorías seleccionadas y el menú colapsable en móvil
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState(20);
+
+  // Resetear el límite cuando cambia la búsqueda o categorías
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [searchTerm, selectedCategories]);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -65,6 +70,9 @@ export default function Catalog({
 
     return matchesSearch && matchesCategory;
   });
+
+  const visibleBooks = filteredBooks.slice(0, displayLimit);
+  const hasMore = filteredBooks.length > displayLimit;
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -209,7 +217,7 @@ export default function Catalog({
                   <div className="h-3 bg-gray-100 rounded-full w-1/2" />
                 </div>
               ))
-            ) : filteredBooks.map((book) => (
+            ) : visibleBooks.map((book) => (
               <motion.div
                 layout
                 key={book.id}
@@ -270,6 +278,18 @@ export default function Catalog({
               </motion.div>
             ))}
           </div>
+
+          {/* Botón Ver Más */}
+          {hasMore && (
+            <div className="mt-12 flex justify-center">
+              <button
+                onClick={() => setDisplayLimit(prev => prev + 20)}
+                className="px-8 py-4 bg-white border-2 border-[var(--color-warm-surface)] text-[var(--color-primary)] font-black rounded-2xl shadow-md hover:bg-[var(--color-warm-bg)] hover:scale-105 transition-all uppercase tracking-widest text-xs"
+              >
+                Ver más libros ({filteredBooks.length - displayLimit} restantes)
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

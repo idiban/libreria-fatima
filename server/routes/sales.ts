@@ -23,12 +23,14 @@ router.post("/", async (req, res) => {
 
       let finalClientId = clientId;
       let clientRef;
+      let isNewClient = false;
 
       if (clientId) {
         clientRef = firestore.collection("clientes").doc(clientId);
       } else {
         clientRef = firestore.collection("clientes").doc();
         finalClientId = clientRef.id;
+        isNewClient = true;
       }
       
       const clientDoc: any = clientId ? await transaction.get(clientRef) : null;
@@ -88,13 +90,26 @@ router.post("/", async (req, res) => {
         timestamp: saleTimestamp,
         affectStock
       });
+
+      // ACTUALIZACIÓN DE ESTADÍSTICAS PERSISTENTES
+      const statsRef = firestore.collection("metadata").doc("stats");
+      transaction.set(statsRef, {
+        totalRevenue: admin.firestore.FieldValue.increment(Number(total)),
+        totalSales: admin.firestore.FieldValue.increment(1),
+        totalClients: admin.firestore.FieldValue.increment(isNewClient ? 1 : 0)
+      }, { merge: true });
     });
 
     // Invalidamos cachés ya que una venta afecta stock de libros y saldos de clientes
     invalidateBooksCache();
     invalidateClientsCache();
 
-    await logActivity(sellerId, sellerName, "SALE", { clientName, total: Number(total), itemsCount: items.length });
+    await logActivity(sellerId, sellerName, "SALE", { 
+      clientName, 
+      total: Number(total), 
+      itemsCount: items.length,
+      items: items.map((i: any) => ({ title: i.title, quantity: i.quantity }))
+    });
     res.json({ success: true });
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -148,6 +163,8 @@ router.put("/:id", async (req, res) => {
       let newClientRef = null;
       let newClientDoc = null;
       let finalClientId = clientId;
+      let isNewClient = false;
+
       if (clientId) {
         if (clientId === oldSaleData.clientId) {
           newClientRef = oldClientRef;
@@ -159,6 +176,7 @@ router.put("/:id", async (req, res) => {
       } else {
         newClientRef = firestore.collection("clientes").doc();
         finalClientId = newClientRef.id;
+        isNewClient = true;
       }
       
       const stockChanges = new Map<string, number>();
@@ -249,6 +267,13 @@ router.put("/:id", async (req, res) => {
         timestamp: saleTimestamp,
         affectStock
       });
+
+      // ACTUALIZACIÓN DE ESTADÍSTICAS PERSISTENTES
+      const statsRef = firestore.collection("metadata").doc("stats");
+      transaction.set(statsRef, {
+        totalRevenue: admin.firestore.FieldValue.increment(Number(total) - (oldSaleData.total || 0)),
+        totalClients: admin.firestore.FieldValue.increment(isNewClient ? 1 : 0)
+      }, { merge: true });
     });
 
     // Invalidamos cachés ya que una edición de venta afecta stock y saldos
@@ -323,6 +348,13 @@ router.delete("/:id", async (req, res) => {
       }
       
       transaction.delete(saleRef);
+
+      // ACTUALIZACIÓN DE ESTADÍSTICAS PERSISTENTES
+      const statsRef = firestore.collection("metadata").doc("stats");
+      transaction.set(statsRef, {
+        totalRevenue: admin.firestore.FieldValue.increment(-Number(saleDataLog.total || 0)),
+        totalSales: admin.firestore.FieldValue.increment(-1)
+      }, { merge: true });
     });
 
     // Invalidamos cachés ya que una eliminación de venta afecta stock y saldos

@@ -26,10 +26,11 @@ interface SaleModalProps {
   sale?: SaleRecord | null;       
   initialBook?: BookItem | null;  
   currentUser: UserProfile;
+  clients: any[];
   onSaleSuccess: () => void;
 }
 
-export default function SaleModal({ isOpen, onClose, sale, initialBook, currentUser, onSaleSuccess }: SaleModalProps) {
+export default function SaleModal({ isOpen, onClose, sale, initialBook, currentUser, clients, onSaleSuccess }: SaleModalProps) {
   const [clientName, setClientName] = useState('');
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientRut, setClientRut] = useState('');
@@ -141,19 +142,10 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
     if (isOpen) {
       const fetchAllData = async () => {
         try {
-          const [resBooks, resClients] = await Promise.all([
-            fetch('/api/books'),
-            fetch('/api/clients')
-          ]);
-          
+          const resBooks = await fetch('/api/books');
           const dataBooks = await resBooks.json();
           if (Array.isArray(dataBooks)) {
             setAllBooks(dataBooks);
-          }
-
-          const dataClients = await resClients.json();
-          if (Array.isArray(dataClients)) {
-            setAllClients(dataClients);
           }
         } catch (e) {
           console.error("Error cargando catálogos:", e);
@@ -255,7 +247,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
   useEffect(() => {
     if (clientName.length > 0 && isClientTyping && !isClientSelected) {
       const normalizedInput = normalizeText(clientName);
-      const filtered = allClients.filter(c => 
+      const filtered = clients.filter(c => 
         c.name && normalizeText(c.name).includes(normalizedInput)
       ).slice(0, 3);
       
@@ -263,7 +255,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
     } else {
       setClientSuggestions([]);
     }
-  }, [clientName, isClientTyping, isClientSelected, allClients]);
+  }, [clientName, isClientTyping, isClientSelected, clients]);
 
   const handleBookSearch = (term: string) => {
     setBookSearchTerm(term);

@@ -7,11 +7,12 @@ import EditSaleModal from './SaleModal';
 interface SalesHistoryProps {
   currentUser: UserProfile;
   sales: SaleRecord[];
+  clients: any[];
   loading: boolean;
   onRefresh: () => void;
 }
 
-export default function SalesHistory({ currentUser, sales, loading, onRefresh }: SalesHistoryProps) {
+export default function SalesHistory({ currentUser, sales, clients, loading, onRefresh }: SalesHistoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
 
@@ -176,6 +177,7 @@ export default function SalesHistory({ currentUser, sales, loading, onRefresh }:
           onClose={() => setSelectedSale(null)}
           sale={selectedSale}
           currentUser={currentUser}
+          clients={clients}
           onSaleSuccess={() => {
             setSelectedSale(null);
             onRefresh();

@@ -256,7 +256,10 @@ router.delete("/:id", async (req, res) => {
 
     if (userCookie && bookTitle) {
       const user = JSON.parse(userCookie);
-      await logActivity(user.id, user.username, "BOOK_DELETE", { title: bookTitle });
+      await logActivity(user.id, user.username, "BOOK_DELETE", { 
+        bookId: id,
+        bookTitle: bookTitle 
+      });
     }
 
     res.status(204).send();

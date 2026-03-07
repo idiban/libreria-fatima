@@ -3,6 +3,38 @@ import { getFirestore, admin } from "../firebase.ts";
 
 const router = express.Router();
 
+// Función para sincronizar estadísticas si el documento no existe
+async function getOrSyncStats(firestore: admin.firestore.Firestore) {
+  const statsRef = firestore.collection("metadata").doc("stats");
+  const statsDoc = await statsRef.get();
+
+  if (statsDoc.exists) {
+    return statsDoc.data();
+  }
+
+  // Si no existe, calculamos todo por primera vez (Migración)
+  console.log("Sincronizando estadísticas por primera vez...");
+  
+  const salesAggregation = await firestore.collection("ventas").aggregate({
+    totalRevenue: admin.firestore.AggregateField.sum('total'),
+    totalSales: admin.firestore.AggregateField.count()
+  }).get();
+
+  const clientsAggregation = await firestore.collection("clientes").aggregate({
+    totalClients: admin.firestore.AggregateField.count()
+  }).get();
+
+  const statsData = {
+    totalRevenue: salesAggregation.data().totalRevenue || 0,
+    totalSales: salesAggregation.data().totalSales || 0,
+    totalClients: clientsAggregation.data().totalClients || 0,
+    lastSync: admin.firestore.FieldValue.serverTimestamp()
+  };
+
+  await statsRef.set(statsData);
+  return statsData;
+}
+
 router.get("/", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
@@ -10,9 +42,10 @@ router.get("/", async (req, res) => {
   try {
     const { timeframe } = req.query;
 
+    // Obtenemos los totales persistentes (0 lecturas de escaneo)
+    const globalStats: any = await getOrSyncStats(firestore);
+
     // 1. Obtener todos los libros (para categorías y stock crítico)
-    // NOTA: Seguimos necesitando los libros para mapear categorías y stock crítico,
-    // pero limitamos el procesamiento.
     const booksSnap = await firestore.collection("libros").get();
     const books = booksSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
     const bookMap = new Map(books.map(b => [b.id, b]));
@@ -23,15 +56,14 @@ router.get("/", async (req, res) => {
       .sort((a, b) => a.stock - b.stock)
       .slice(0, 5);
 
-    // 3. AGREGACIÓN: Obtener deudas y créditos totales sin leer cada documento
+    // 3. Deudores (Esto sigue siendo dinámico)
     const clientsCol = firestore.collection("clientes");
     const debtAggregation = await clientsCol.aggregate({
       totalDebt: admin.firestore.AggregateField.sum('totalDebt'),
-      totalCredit: admin.firestore.AggregateField.sum('creditBalance'),
-      count: admin.firestore.AggregateField.count()
+      totalCredit: admin.firestore.AggregateField.sum('creditBalance')
     }).get();
     
-    const { totalDebt, totalCredit, count: totalClients } = debtAggregation.data();
+    const { totalDebt, totalCredit } = debtAggregation.data();
 
     const topDebtorsSnap = await clientsCol
       .where('totalDebt', '>', 0)
@@ -41,9 +73,15 @@ router.get("/", async (req, res) => {
     
     const topDebtors = topDebtorsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 4. Filtrado por Fecha para Ventas
+    // 4. Filtrado por Fecha para Ventas (Solo si hay timeframe)
+    let totalRevenue = globalStats.totalRevenue;
+    let totalSales = 0; // Este lo calculamos del periodo
+    let salesByDayMap = new Map<string, number>();
+    let bookCountMap = new Map<string, { title: string, count: number }>();
+    let categoryMap = new Map<string, number>();
+    let clientSpentMap = new Map<string, number>();
+
     let salesQuery: any = firestore.collection("ventas");
-    let revenueAggregationQuery: any = firestore.collection("ventas");
     
     if (timeframe && timeframe !== 'all') {
       const now = new Date();
@@ -57,52 +95,37 @@ router.get("/", async (req, res) => {
         startDate.setHours(0, 0, 0, 0);
       }
       salesQuery = salesQuery.where('timestamp', '>=', startDate);
-      revenueAggregationQuery = revenueAggregationQuery.where('timestamp', '>=', startDate);
+      
+      const revenueAggregation = await salesQuery.aggregate({
+        totalRevenue: admin.firestore.AggregateField.sum('total')
+      }).get();
+      totalRevenue = revenueAggregation.data().totalRevenue || 0;
     }
-
-    // AGREGACIÓN: Total de ingresos del periodo
-    const revenueAggregation = await revenueAggregationQuery.aggregate({
-      totalRevenue: admin.firestore.AggregateField.sum('total')
-    }).get();
-    
-    const { totalRevenue } = revenueAggregation.data();
 
     const salesSnap = await salesQuery.get();
     
-    let totalSales = 0;
-    const salesByDayMap = new Map<string, number>();
-    const bookCountMap = new Map<string, { title: string, count: number }>();
-    const categoryMap = new Map<string, number>();
-    const clientSpentMap = new Map<string, number>();
-
     salesSnap.docs.forEach((doc: any) => {
       const sale = doc.data();
       
-      // Agrupar ventas por día
       if (sale.timestamp) {
         const date = sale.timestamp.toDate();
-        // Usamos YYYY-MM-DD para poder ordenarlos cronológicamente sin fallos
         const dateStr = date.toISOString().split('T')[0]; 
         salesByDayMap.set(dateStr, (salesByDayMap.get(dateStr) || 0) + (sale.total || 0));
       }
 
-      // Agrupar clientes que más gastan
       if (sale.clientName) {
         clientSpentMap.set(sale.clientName, (clientSpentMap.get(sale.clientName) || 0) + (sale.total || 0));
       }
 
-      // Analizar los items vendidos (Libros y Categorías)
       if (Array.isArray(sale.items)) {
         sale.items.forEach((item: any) => {
           if (!item.bookId.startsWith('custom_')) {
             totalSales += item.quantity;
             
-            // Libros más vendidos
             const currentBook = bookCountMap.get(item.bookId) || { title: item.title, count: 0 };
             currentBook.count += item.quantity;
             bookCountMap.set(item.bookId, currentBook);
 
-            // Ventas por Categoría
             const bookData = bookMap.get(item.bookId);
             const category = bookData?.category || 'Sin categoría';
             categoryMap.set(category, (categoryMap.get(category) || 0) + item.quantity);
@@ -111,9 +134,6 @@ router.get("/", async (req, res) => {
       }
     });
 
-    // --- FORMATEO FINAL DE LOS DATOS ---
-    
-    // Ordenar fechas cronológicamente y cambiar formato a DD/MM
     const sortedSalesByDay = Array.from(salesByDayMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, total]) => {
@@ -136,8 +156,8 @@ router.get("/", async (req, res) => {
 
     res.json({
       totalRevenue,
-      totalSales,
-      totalClients,
+      totalSales: timeframe === 'all' ? globalStats.totalSales : totalSales,
+      totalClients: globalStats.totalClients,
       totalDebt,
       totalCredit,
       salesByDay: sortedSalesByDay,
