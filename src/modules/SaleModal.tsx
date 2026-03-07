@@ -116,6 +116,18 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
     return str.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
+  // NUEVA FUNCIÓN: Formateo estricto para el nombre del cliente
+  const formatClientName = (str: string) => {
+    // Solo permite letras (incluyendo acentos y ñ) y espacios
+    const onlyLetters = str.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    
+    // Convierte a Title Case (Primera mayúscula, el resto forzado a minúscula)
+    return onlyLetters.split(' ').map(word => {
+      if (!word) return '';
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  };
+
   const togglePaymentMethod = (method: string) => {
     setPaymentMethods(prev => {
       if (prev.includes(method)) return prev.filter(m => m !== method);
@@ -420,6 +432,14 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
     }
   };
 
+  // Lógica para validar que se ingresen al menos dos palabras (Nombre y Apellido)
+  const hasNameAndSurname = (name: string) => {
+    const words = name.trim().split(/\s+/);
+    // Cambiamos a > 1 para exigir que el apellido tenga más de una letra
+    return words.length >= 2 && words[1].length > 1;
+  };
+  const isMissingSurname = clientName.length > 0 && !hasNameAndSurname(clientName);
+
   return (
     <>
       <AnimatePresence>
@@ -653,17 +673,28 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
 
                 {/* 3. SECCIÓN: COMPRADOR */}
                 <div className="space-y-2">
-                  <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Comprador</label>
+                  <div className="flex justify-between items-end pr-1">
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Comprador</label>
+                    {isMissingSurname && (
+                      <span className="text-orange-500 font-bold text-[10px] sm:text-xs">Debe escribir nombre y apellido</span>
+                    )}
+                  </div>
                   <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                    <User className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 transition-colors ${isMissingSurname ? 'text-orange-400' : 'text-gray-400'}`} />
                     <input
                       type="text"
-                      className={`w-full pl-10 sm:pl-12 pr-4 py-3 bg-gray-100 border-2 rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base ${clientNameError ? 'border-red-500' : 'border-transparent focus:border-[var(--color-primary)]'}`}
+                      className={`w-full pl-10 sm:pl-12 pr-4 py-3 bg-gray-100 border-2 rounded-xl sm:rounded-2xl outline-none transition-all font-bold text-sm sm:text-base ${
+                        clientNameError 
+                          ? 'border-red-500' 
+                          : isMissingSurname 
+                            ? 'border-orange-400 focus:border-orange-500' 
+                            : 'border-transparent focus:border-[var(--color-primary)]'
+                      }`}
                       placeholder="Nombre del comprador..."
                       value={clientName}
                       onChange={(e) => {
-                        const valorSinNumeros = e.target.value.replace(/[0-9]/g, '');
-                        setClientName(capitalizeWords(valorSinNumeros));
+                        const formatted = formatClientName(e.target.value);
+                        setClientName(formatted);
                         setClientId(null);
                         setClientRut('');
                         setIsRutInvalid(false);
@@ -942,7 +973,8 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                 </button>
                 <button
                   onClick={handleFinalize}
-                  disabled={isLoading || amountPaid < 0 || !clientName.trim() || items.length === 0 || (paymentMethods.includes('transferencia') && clientRut !== '' && isRutInvalid)} 
+                  // El botón ahora exige que no falte el apellido (isMissingSurname sea falso)
+                  disabled={isLoading || amountPaid < 0 || !clientName.trim() || isMissingSurname || items.length === 0 || (paymentMethods.includes('transferencia') && clientRut !== '' && isRutInvalid)} 
                   className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-3.5 px-4 rounded-xl font-black text-sm shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                 >
                   {isLoading ? (
