@@ -18,8 +18,14 @@ export default function ClientsList({ clients, loading, onRefresh }: ClientsList
     return Number(price || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
+  const normalizeText = (text: string) => {
+    return (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  const normalizedSearch = normalizeText(searchTerm);
+
   const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase())
+    normalizeText(client.name).includes(normalizedSearch)
   );
 
   return (

@@ -284,16 +284,16 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
                     </span>
                   </td>
                   <td className="px-4 py-6 align-middle">
-                    <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                    <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
                   </td>
                   <td className="px-4 py-6 align-middle">
-                    <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                    <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
                   </td>
                   <td className="px-4 py-6 align-middle">
-                    <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                    <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
                   </td>
                   <td className="px-4 py-6 align-middle">
-                    <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                    <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
                   </td>
                   <td className="px-8 py-6 text-right">
                     <div className="inline-flex items-center gap-2">
@@ -369,19 +369,19 @@ export default function UserAdmin({ currentUser, allUsers, onFetchUsers }: UserA
             <div className="grid grid-cols-2 gap-y-4 gap-x-2 py-4 border-y border-[#FDF2F0]">
               <div className="flex items-center justify-between px-2">
                 <span className="text-xs font-bold text-gray-500">Añadir Libro</span>
-                <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                <PermissionToggle userId={user.id} permission="canAddBook" initialValue={user.permissions?.canAddBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
               </div>
               <div className="flex items-center justify-between px-2">
                 <span className="text-xs font-bold text-gray-500">Editar Stock</span>
-                <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                <PermissionToggle userId={user.id} permission="canEditStock" initialValue={user.permissions?.canEditStock} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
               </div>
               <div className="flex items-center justify-between px-2">
                 <span className="text-xs font-bold text-gray-500">Editar Libros</span>
-                <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                <PermissionToggle userId={user.id} permission="canEditBook" initialValue={user.permissions?.canEditBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
               </div>
               <div className="flex items-center justify-between px-2">
                 <span className="text-xs font-bold text-gray-500">Borrar Libros</span>
-                <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner' || user.role === 'admin'} />
+                <PermissionToggle userId={user.id} permission="canDeleteBook" initialValue={user.permissions?.canDeleteBook} isOwner={user.role === 'owner' || (currentUser.role === 'admin' && user.role === 'admin')} />
               </div>
             </div>
             
