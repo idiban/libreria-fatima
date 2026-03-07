@@ -571,7 +571,8 @@ export default function BookModal({ isOpen, onClose, editingBook, onSave, books,
                         <div className="space-y-2">
                           <label className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-400 ml-1">Stock</label>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             name="stock"
                             disabled={editingBook !== null && !canEditStock}
                             className={`w-full px-4 sm:px-5 py-3 sm:py-4 bg-gray-100 border-2 ${errors.stock ? 'border-red-500' : 'border-transparent'} focus:border-[var(--color-primary)] rounded-xl sm:rounded-2xl outline-none transition-all font-black text-lg sm:text-xl ${(editingBook && !canEditStock) ? 'opacity-50 cursor-not-allowed' : ''}`}

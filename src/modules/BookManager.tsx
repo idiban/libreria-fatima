@@ -110,7 +110,7 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-[var(--color-primary)]">Gestión de libros</h2>
-            <span className="px-3 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-black rounded-full border border-[var(--color-primary)]/20 shadow-sm">
+            <span className="whitespace-nowrap px-3 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-black rounded-full border border-[var(--color-primary)]/20 shadow-sm">
               {searchTerm ? `${filteredBooks.length} de ${books.length}` : `${books.length} total`}
             </span>
           </div>
@@ -224,7 +224,14 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-[var(--color-primary)] truncate text-lg">{book.title}</p>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="font-bold text-[var(--color-primary)] truncate text-lg">{book.title}</p>
+                  {book.tomo && (
+                    <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[9px] px-1.5 py-0.5 rounded flex items-center">
+                      {book.tomo}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400 font-bold truncate mb-2">{book.author}</p>
                 <span className="inline-block px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
                   {book.category || 'Sin categoría'}
@@ -286,52 +293,63 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
   );
 }
 
-// NUEVO: Componente para modificar el stock en vivo (Con estado de carga y UI Premium para Web y Móvil)
+/// NUEVO: Componente para modificar el stock en vivo (Con Debounce optimizado)
 function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { book: BookItem, textClass?: string, disabled?: boolean }) {
   const [stock, setStock] = useState<number | string>(book.stock);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Sincroniza con la prop si cambia externamente
   useEffect(() => {
-    if (!isUpdating) {
-      setStock(book.stock);
-    }
-  }, [book.stock, isUpdating]);
+    setStock(book.stock);
+  }, [book.stock]);
 
-  const updateStockInDB = async (newStock: number) => {
-    const validStock = isNaN(newStock) || newStock < 0 ? 0 : newStock;
-    if (validStock === book.stock) return;
+  // Lógica de Debounce para actualizar la BD solo cuando el usuario deja de hacer clic
+  useEffect(() => {
+    const numericStock = typeof stock === 'string' ? parseInt(stock, 10) : stock;
+    const isValid = !isNaN(numericStock) && numericStock >= 0;
 
-    setIsUpdating(true);
-    setStock(validStock);
+    // Si el stock local es igual al de la BD o no es válido, no hacemos nada
+    if (numericStock === book.stock || !isValid) return;
 
-    try {
-      const response = await fetch(`/api/books/${book.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock: validStock })
-      });
-      if (response.ok) {
-        window.dispatchEvent(new Event('stockUpdated'));
-      } else {
+    // Configuramos un temporizador. Si el usuario vuelve a hacer clic, este timer se cancela y reinicia
+    const timer = setTimeout(async () => {
+      setIsUpdating(true);
+
+      try {
+        const response = await fetch(`/api/books/${book.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stock: numericStock })
+        });
+        
+        if (response.ok) {
+          // Avisamos a la tabla principal que recargue si es necesario
+          window.dispatchEvent(new Event('stockUpdated'));
+        } else {
+          // Si falla, volvemos al estado de la base de datos
+          setStock(book.stock); 
+        }
+      } catch (error) {
         setStock(book.stock); 
+      } finally {
+        setIsUpdating(false);
       }
-    } catch (error) {
-      setStock(book.stock); 
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+    }, 600); // Espera 600 milisegundos después del último clic
 
+    // Función de limpieza: cancela el timer si el usuario hace clic antes de los 600ms
+    return () => clearTimeout(timer);
+  }, [stock, book.stock, book.id]);
+
+  // Al hacer clic, solo cambiamos el estado local al instante (el useEffect se encargará de la BD)
+  const handleIncrement = () => setStock(Number(stock) + 1);
+  const handleDecrement = () => setStock(Math.max(0, Number(stock) - 1));
+
+  // Ya no necesitamos updateStockInDB en el onBlur porque el useEffect también atrapará los cambios manuales en el input
   const handleInputBlur = () => {
-    const numStock = typeof stock === 'string' ? parseInt(stock, 10) : stock;
-    updateStockInDB(numStock);
+    if (stock === '') setStock(book.stock);
   };
-
-  const handleIncrement = () => updateStockInDB(Number(stock) + 1);
-  const handleDecrement = () => updateStockInDB(Math.max(0, Number(stock) - 1));
 
   return (
-    // Reducimos padding (p-0.5), redondeo (rounded-lg)
     <div 
       className={`inline-flex items-center gap-0 bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm transition-all ${disabled ? 'opacity-50' : 'hover:shadow hover:border-[var(--color-primary)]/40'}`}
       onClickCapture={(e) => {
@@ -344,8 +362,7 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
     >
       <button 
         onClick={handleDecrement}
-        disabled={disabled || isUpdating || Number(stock) === 0}
-        // Botón más chico (w-6 h-6), ícono mini (w-3 h-3)
+        disabled={disabled || Number(stock) === 0}
         className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         title="Disminuir stock"
       >
@@ -365,9 +382,8 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
           onChange={(e) => setStock(e.target.value)}
           onBlur={handleInputBlur}
           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          disabled={disabled || isUpdating}
+          disabled={disabled}
           title="Editar stock"
-          // Input más angosto (w-8), texto más chico (text-sm)
           className={`w-8 px-0.5 py-0 bg-transparent focus:bg-gray-50 focus:ring-1 focus:ring-[var(--color-primary)]/20 rounded-md outline-none transition-all text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-black text-sm ${textClass} ${
             Number(stock) === 0 ? 'text-red-500' : Number(stock) <= 3 ? 'text-orange-500' : 'text-emerald-500'
           }`}
@@ -376,8 +392,7 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
       
       <button 
         onClick={handleIncrement}
-        disabled={disabled || isUpdating}
-        // Botón más chico (w-6 h-6), ícono mini (w-3 h-3)
+        disabled={disabled}
         className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
         title="Aumentar stock"
       >

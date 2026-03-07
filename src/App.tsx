@@ -112,8 +112,9 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
 
-    // Al iniciar sesión (o recargar), si no hay fecha de expiración, la creamos
-    if (!localStorage.getItem('sessionExpire')) {
+    // Al iniciar sesión (o recargar), si no hay fecha de expiración o ya expiró, la creamos
+    const expireTimeStr = localStorage.getItem('sessionExpire');
+    if (!expireTimeStr || parseInt(expireTimeStr, 10) < Date.now()) {
       resetTimer();
     }
 
