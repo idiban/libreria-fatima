@@ -194,6 +194,18 @@ export default function App() {
     }
   }, []);
 
+  const fetchClients = useCallback(async (force = false) => {
+    if (hasFetchedClients && !force) return;
+    try {
+      const res = await fetch('/api/clients');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setClients(data.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+        setHasFetchedClients(true);
+      }
+    } catch (e) {}
+  }, [hasFetchedClients]);
+
   const checkAuth = useCallback(async () => {
     try {
       const response = await fetch('/api/me');
@@ -207,6 +219,12 @@ export default function App() {
       }
     } catch (e) {}
   }, [resetTimer]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchClients();
+    }
+  }, [currentUser, fetchClients]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -239,18 +257,6 @@ export default function App() {
     } catch (e) {}
   }, [hasFetchedSales]);
 
-  const fetchClients = useCallback(async (force = false) => {
-    if (hasFetchedClients && !force) return;
-    try {
-      const res = await fetch('/api/clients');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setClients(data.sort((a: any, b: any) => a.name.localeCompare(b.name)));
-        setHasFetchedClients(true);
-      }
-    } catch (e) {}
-  }, [hasFetchedClients]);
-
   const fetchLogs = useCallback(async (force = false) => {
     if (hasFetchedLogs && !force) return;
     try {
@@ -266,7 +272,6 @@ export default function App() {
   useEffect(() => {
     fetchBooks();
     checkAuth();
-    fetchClients();
 
     const handleStockUpdate = () => {
       fetchBooks();
