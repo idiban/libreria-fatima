@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Plus, Minus, Search, Edit2, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Loader2, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, Plus, Minus, Search, Edit2, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Loader2, X, Filter, ChevronDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { BookItem, UserProfile } from '../types';
 import ConfirmationModal from '../components/ConfirmationModal'; 
@@ -12,13 +12,12 @@ const formatPrice = (price?: number) => {
 
 interface BookManagerProps {
   books: BookItem[];
-  currentUser: UserProfile | null; // <-- Añadimos el usuario
+  currentUser: UserProfile | null;
   onEditBook: (book: BookItem) => void;
   onAddBook: () => void;
   onBookDeleted: () => void;
 }
 
-// Agregamos 'price' a las columnas ordenables
 type SortColumn = 'title' | 'category' | 'price' | 'stock';
 type SortDirection = 'asc' | 'desc';
 
@@ -30,40 +29,54 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
   const [bookToDelete, setBookToDelete] = useState<BookItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Nuevos estados para el ordenamiento
+  // Estados para el ordenamiento
   const [sortColumn, setSortColumn] = useState<SortColumn>('title');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [displayLimit, setDisplayLimit] = useState(20);
 
-  // Resetear el límite cuando cambia la búsqueda o el ordenamiento
+  // Estados para el filtro de categorías
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+  // Resetear el límite cuando cambia la búsqueda, el ordenamiento o las categorías
   useEffect(() => {
     setDisplayLimit(20);
-  }, [searchTerm, sortColumn, sortDirection]);
+  }, [searchTerm, sortColumn, sortDirection, selectedCategories]);
 
   const normalizeText = (text: string) => {
     if (!text) return '';
     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
 
-  // Función para manejar el clic en las columnas
+  // Extraer dinámicamente las categorías únicas
+  const uniqueCategories = useMemo(() => {
+    const categories = books.map(b => b.category).filter(Boolean) as string[];
+    return Array.from(new Set(categories)).sort();
+  }, [books]);
+
+  // Función para seleccionar/deseleccionar categorías
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev => 
+      prev.includes(category) 
+        ? prev.filter(c => c !== category) 
+        : [...prev, category]
+    );
+  };
+
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
-      // Si ya estamos ordenando por esta columna, invertimos la dirección
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      // Si es una columna nueva, la seleccionamos y ordenamos ascendente por defecto
       setSortColumn(column);
       setSortDirection('asc');
     }
   };
 
-  // Función que renderiza el ícono correcto según el estado de ordenamiento
   const renderSortIcon = (column: SortColumn) => {
     if (sortColumn !== column) return <ArrowUpDown className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />;
     return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4 text-[var(--color-primary)]" /> : <ArrowDown className="w-4 h-4 text-[var(--color-primary)]" />;
   };
 
-  // Lógica dinámica de ordenamiento
   const sortedBooks = [...books].sort((a, b) => {
     let compareResult = 0;
     
@@ -74,7 +87,6 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
       const catB = b.category || '';
       compareResult = catA.localeCompare(catB);
     } else if (sortColumn === 'price') {
-      // Lógica de ordenamiento para precio
       compareResult = (a.price || 0) - (b.price || 0);
     } else if (sortColumn === 'stock') {
       compareResult = a.stock - b.stock;
@@ -85,14 +97,18 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
   
   const filteredBooks = sortedBooks.filter(b => {
     const normalizedSearch = normalizeText(searchTerm);
-    return normalizeText(b.title).includes(normalizedSearch) || 
-           normalizeText(b.author).includes(normalizedSearch);
+    const matchesSearch = normalizeText(b.title).includes(normalizedSearch) || 
+                          normalizeText(b.author).includes(normalizedSearch);
+    
+    const matchesCategory = selectedCategories.length === 0 || 
+                            (b.category && selectedCategories.includes(b.category));
+
+    return matchesSearch && matchesCategory;
   });
 
   const visibleBooks = filteredBooks.slice(0, displayLimit);
   const hasMore = filteredBooks.length > displayLimit;
 
-  // Infinite scroll observer
   useEffect(() => {
     if (!hasMore) return;
 
@@ -136,7 +152,7 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-[var(--color-primary)]">Gestión de libros</h2>
             <span className="whitespace-nowrap px-3 py-1 bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-xs font-black rounded-full border border-[var(--color-primary)]/20 shadow-sm">
-              {searchTerm ? `${filteredBooks.length} de ${books.length}` : `${books.length} total`}
+              {searchTerm || selectedCategories.length > 0 ? `${filteredBooks.length} de ${books.length}` : `${books.length} total`}
             </span>
           </div>
           <p className="text-sm sm:text-base text-gray-500 font-medium">Administra y organiza los libros de tu librería.</p>
@@ -173,144 +189,216 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
         </div>
       </div>
 
-      {/* Desktop Table View */}
-      <div className="hidden md:block bg-white rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[var(--color-warm-surface)]">
-                <th 
-                  className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
-                  onClick={() => handleSort('title')}
-                >
-                  <div className="flex items-center gap-2">
-                    Libro {renderSortIcon('title')}
-                  </div>
-                </th>
-                <th 
-                  className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
-                  onClick={() => handleSort('category')}
-                >
-                  <div className="flex items-center gap-2">
-                    Categoría {renderSortIcon('category')}
-                  </div>
-                </th>
-                {/* Columnas de Precio, Stock y Acciones ajustadas */}
-                <th 
-                  className="w-24 px-2 py-4 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
-                  onClick={() => handleSort('price')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Precio {renderSortIcon('price')}
-                  </div>
-                </th>
-                <th 
-                  className="w-36 px-2 py-4 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
-                  onClick={() => handleSort('stock')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Stock {renderSortIcon('stock')}
-                  </div>
-                </th>
-                {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
-                  <th className="w-24 px-4 py-4 text-right cursor-default">Acciones</th>
+      {/* CONTENEDOR PRINCIPAL: FILTROS SUPERIORES + TABLA */}
+      <div className="flex flex-col gap-6 items-start">
+        
+        {/* BARRA HORIZONTAL DE CATEGORÍAS */}
+        {uniqueCategories.length > 0 && (
+          <div className="w-full">
+            <button 
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="lg:hidden w-full flex items-center justify-between bg-white border border-[var(--color-warm-surface)] p-3.5 rounded-2xl shadow-sm hover:border-[var(--color-primary)] transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-gray-500" />
+                <span className="font-bold text-sm text-gray-700">Filtrar Categorías</span>
+                {selectedCategories.length > 0 && (
+                  <span className="bg-[var(--color-primary)] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {selectedCategories.length}
+                  </span>
                 )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-warm-surface)]">
-              {visibleBooks.map((book) => (
-                <BookRow 
-                  key={book.id} 
-                  book={book} 
-                  onEditBook={onEditBook}
-                  onDeleteRequest={setBookToDelete}
-                  canEditBook={isOwner || perms.canEditBook !== false}
-                  canDeleteBook={isOwner || perms.canDeleteBook !== false}
-                  canEditStock={isOwner || perms.canEditStock !== false}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showMobileFilters ? 'rotate-180' : ''}`} />
+            </button>
 
-      {/* Mobile Card View */}
-      <div className="md:hidden space-y-4">
-        {visibleBooks.map((book) => (
-          <div key={book.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-20 rounded-xl bg-gray-50 overflow-hidden shrink-0 border border-gray-100 shadow-sm">
-                {book.cover_url ? (
-                  <img src={book.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-200">
-                    <Package className="w-8 h-8" />
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className="font-bold text-[var(--color-primary)] truncate text-lg">{book.title}</p>
-                  {book.tomo && (
-                    <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[9px] px-1.5 py-0.5 rounded flex items-center">
-                      {book.tomo}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 font-bold truncate mb-2">{book.author}</p>
-                <span className="inline-block px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
-                  {book.category || 'Sin categoría'}
-                </span>
-              </div>
+            {/* Cuadrícula de categorías */}
+            <div className={`${showMobileFilters ? 'grid' : 'hidden'} lg:grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 lg:gap-3 bg-white lg:bg-transparent p-4 lg:p-0 rounded-2xl border border-[var(--color-warm-surface)] lg:border-none shadow-sm lg:shadow-none mt-2 lg:mt-0 w-full`}>
+              
+              <button
+                onClick={() => setSelectedCategories([])}
+                className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all text-center w-full ${
+                  selectedCategories.length === 0
+                    ? 'bg-[var(--color-primary)] text-white shadow-md shadow-[var(--color-primary)]/20'
+                    : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200 shadow-sm'
+                }`}
+              >
+                Todas
+              </button>
+              
+              {uniqueCategories.map(category => {
+                const isSelected = selectedCategories.includes(category);
+                return (
+                  <button
+                    key={category}
+                    onClick={() => toggleCategory(category)}
+                    className={`px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all border text-center w-full truncate ${
+                      isSelected 
+                        ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)]/30 text-[var(--color-primary)]' 
+                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm'
+                    }`}
+                    title={category}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
             </div>
             
-            <div className="flex flex-col gap-4 pt-4 border-t border-[var(--color-warm-surface)]">
-              {/* Contenedor espacioso para Precio y Stock */}
-              <div className="flex items-center justify-between px-1">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Precio</span>
-                  <span className="text-xl font-bold text-gray-700">
-                    ${formatPrice(book.price)}
-                  </span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Stock</span>
-                  <InlineStockInput book={book} textClass="text-lg" disabled={!(isOwner || perms.canEditStock !== false)} />
-                </div>
+            {/* Botón de limpiar filtros aparte para que no rompa la cuadrícula */}
+            {selectedCategories.length > 0 && (
+              <div className="flex justify-end mt-3">
+                <button 
+                  onClick={() => setSelectedCategories([])}
+                  className="text-[11px] sm:text-xs font-bold text-[var(--color-primary)] hover:underline"
+                >
+                  Limpiar filtros
+                </button>
               </div>
-              
-              {/* Botones de acción abajo para dar espacio */}
-              {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
-                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-50">
-                  {(isOwner || perms.canEditBook !== false) && (
-                    <button 
-                      onClick={() => onEditBook(book)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[var(--color-warm-bg)] rounded-xl text-[var(--color-primary)] font-bold text-sm shadow-sm active:scale-95 transition-all"
+            )}
+          </div>
+        )}
+
+        {/* LISTADOS DE LIBROS */}
+        <div className="w-full min-w-0">
+          
+          {/* Desktop Table View */}
+          <div className="hidden md:block bg-white rounded-[2.5rem] shadow-sm border border-[var(--color-warm-surface)] overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left border-collapse">
+                <thead>
+                  <tr className="text-xs font-black text-gray-400 uppercase tracking-widest border-b border-[var(--color-warm-surface)]">
+                    <th 
+                      className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                      onClick={() => handleSort('title')}
                     >
-                      <Edit2 className="w-4 h-4" /> Editar
-                    </button>
-                  )}
-                  {(isOwner || perms.canDeleteBook !== false) && (
-                    <button 
-                      onClick={() => setBookToDelete(book)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-red-50 rounded-xl text-red-500 font-bold text-sm shadow-sm active:scale-95 transition-all"
+                      <div className="flex items-center gap-2">
+                        Libro {renderSortIcon('title')}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-8 py-6 cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                      onClick={() => handleSort('category')}
                     >
-                      <Trash2 className="w-4 h-4" /> Eliminar
-                    </button>
-                  )}
-                </div>
-              )}
+                      <div className="flex items-center gap-2">
+                        Categoría {renderSortIcon('category')}
+                      </div>
+                    </th>
+                    <th 
+                      className="w-24 px-2 py-4 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                      onClick={() => handleSort('price')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Precio {renderSortIcon('price')}
+                      </div>
+                    </th>
+                    <th 
+                      className="w-36 px-2 py-4 text-center cursor-pointer hover:bg-gray-50 transition-colors group select-none"
+                      onClick={() => handleSort('stock')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Stock {renderSortIcon('stock')}
+                      </div>
+                    </th>
+                    {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
+                      <th className="w-24 px-4 py-4 text-right cursor-default">Acciones</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-warm-surface)]">
+                  {visibleBooks.map((book) => (
+                    <BookRow 
+                      key={book.id} 
+                      book={book} 
+                      onEditBook={onEditBook}
+                      onDeleteRequest={setBookToDelete}
+                      canEditBook={isOwner || perms.canEditBook !== false}
+                      canDeleteBook={isOwner || perms.canDeleteBook !== false}
+                      canEditStock={isOwner || perms.canEditStock !== false}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Sentinel para Infinite Scroll */}
-      {hasMore && (
-        <div id="manager-scroll-sentinel" className="h-20 flex items-center justify-center py-4">
-          <div className="w-6 h-6 border-2 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4">
+            {visibleBooks.map((book) => (
+              <div key={book.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-20 rounded-xl bg-gray-50 overflow-hidden shrink-0 border border-gray-100 shadow-sm">
+                    {book.cover_url ? (
+                      <img src={book.cover_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-200">
+                        <Package className="w-8 h-8" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-bold text-[var(--color-primary)] truncate text-lg">{book.title}</p>
+                      {book.tomo && (
+                        <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[9px] px-1.5 py-0.5 rounded flex items-center">
+                          {book.tomo}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 font-bold truncate mb-2">{book.author}</p>
+                    <span className="inline-block px-2 py-0.5 bg-[var(--color-warm-surface)] rounded-full text-[8px] font-black uppercase tracking-widest text-[var(--color-primary)]">
+                      {book.category || 'Sin categoría'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-4 pt-4 border-t border-[var(--color-warm-surface)]">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Precio</span>
+                      <span className="text-xl font-bold text-gray-700">
+                        ${formatPrice(book.price)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Stock</span>
+                      <InlineStockInput book={book} textClass="text-lg" disabled={!(isOwner || perms.canEditStock !== false)} />
+                    </div>
+                  </div>
+                  
+                  {(isOwner || perms.canEditBook !== false || perms.canDeleteBook !== false) && (
+                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-50">
+                      {(isOwner || perms.canEditBook !== false) && (
+                        <button 
+                          onClick={() => onEditBook(book)}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[var(--color-warm-bg)] rounded-xl text-[var(--color-primary)] font-bold text-sm shadow-sm active:scale-95 transition-all"
+                        >
+                          <Edit2 className="w-4 h-4" /> Editar
+                        </button>
+                      )}
+                      {(isOwner || perms.canDeleteBook !== false) && (
+                        <button 
+                          onClick={() => setBookToDelete(book)}
+                          className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-red-50 rounded-xl text-red-500 font-bold text-sm shadow-sm active:scale-95 transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" /> Eliminar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sentinel para Infinite Scroll */}
+          {hasMore && (
+            <div id="manager-scroll-sentinel" className="h-20 flex items-center justify-center py-4 mt-4">
+              <div className="w-6 h-6 border-2 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
+            </div>
+          )}
+          
         </div>
-      )}
+      </div>
 
       <ConfirmationModal
         isOpen={!!bookToDelete}
@@ -330,20 +418,16 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
   const [stock, setStock] = useState<number | string>(book.stock);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Sincroniza con la prop si cambia externamente
   useEffect(() => {
     setStock(book.stock);
   }, [book.stock]);
 
-  // Lógica de Debounce para actualizar la BD solo cuando el usuario deja de hacer clic
   useEffect(() => {
     const numericStock = typeof stock === 'string' ? parseInt(stock, 10) : stock;
     const isValid = !isNaN(numericStock) && numericStock >= 0;
 
-    // Si el stock local es igual al de la BD o no es válido, no hacemos nada
     if (numericStock === book.stock || !isValid) return;
 
-    // Configuramos un temporizador. Si el usuario vuelve a hacer clic, este timer se cancela y reinicia
     const timer = setTimeout(async () => {
       setIsUpdating(true);
 
@@ -355,10 +439,8 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
         });
         
         if (response.ok) {
-          // Avisamos a la tabla principal que recargue si es necesario
           window.dispatchEvent(new Event('stockUpdated'));
         } else {
-          // Si falla, volvemos al estado de la base de datos
           setStock(book.stock); 
         }
       } catch (error) {
@@ -366,17 +448,14 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
       } finally {
         setIsUpdating(false);
       }
-    }, 600); // Espera 600 milisegundos después del último clic
+    }, 600);
 
-    // Función de limpieza: cancela el timer si el usuario hace clic antes de los 600ms
     return () => clearTimeout(timer);
   }, [stock, book.stock, book.id]);
 
-  // Al hacer clic, solo cambiamos el estado local al instante (el useEffect se encargará de la BD)
   const handleIncrement = () => setStock(Number(stock) + 1);
   const handleDecrement = () => setStock(Math.max(0, Number(stock) - 1));
 
-  // Ya no necesitamos updateStockInDB en el onBlur porque el useEffect también atrapará los cambios manuales en el input
   const handleInputBlur = () => {
     if (stock === '') setStock(book.stock);
   };
@@ -458,7 +537,6 @@ function BookRow({ book, onEditBook, onDeleteRequest, canEditBook = true, canDel
               </div>
             )}
           </div>
-          {/* min-w-0 y max-w evitan que textos largos deformen la columna */}
           <div className="min-w-0 max-w-[200px] xl:max-w-[350px]">
             <div className="flex items-center gap-2 mb-0.5">
               <p className="font-bold text-[var(--color-primary)] truncate text-base group-hover:text-[var(--color-primary-hover)] transition-colors" title={book.title}>
@@ -477,19 +555,16 @@ function BookRow({ book, onEditBook, onDeleteRequest, canEditBook = true, canDel
         </div>
       </td>
       <td className="px-8 py-6 align-middle">
-        {/* whitespace-nowrap mantiene la etiqueta siempre en una sola línea */}
         <span className="inline-block whitespace-nowrap px-3 py-1 bg-[var(--color-warm-surface)] rounded-full text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">
           {book.category || 'Sin categoría'}
         </span>
       </td>
-      {/* Celdas ajustadas (menos padding, fuente y botones ligeramente más chicos) */}
       <td className="px-2 py-4 text-center align-middle">
         <div className="text-sm font-bold text-gray-600">
           ${formatPrice(book.price)}
         </div>
       </td>
       <td className="px-2 py-4 text-center align-middle">
-        {/* Cambiamos a text-sm para que el número del stock no sea tan grande */}
         <InlineStockInput book={book} textClass="text-sm" disabled={!canEditStock} />
       </td>
       {(canEditBook || canDeleteBook) && (
@@ -498,7 +573,6 @@ function BookRow({ book, onEditBook, onDeleteRequest, canEditBook = true, canDel
             {canEditBook && (
               <button 
                 onClick={() => onEditBook(book)}
-                // Padding a p-1.5, redondeo a md y tamaño de icono a w-3.5 h-3.5
                 className="p-1.5 bg-emerald-50 border border-emerald-200 rounded-md text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300 shadow-sm transition-all"
                 title="Editar"
               >
