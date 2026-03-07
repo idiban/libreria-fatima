@@ -81,25 +81,38 @@ router.get("/", async (req, res) => {
     const clientsSnapshot = await firestore.collection("clientes").get();
     const clients = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Esta es la parte más costosa: lee TODAS las ventas solo para contar ítems
+    // Obtenemos las ventas para calcular las estadísticas
     const salesSnapshot = await firestore.collection("ventas").get();
-    const itemsByClient = salesSnapshot.docs.reduce((acc, doc) => {
+    
+    // Calculamos tanto el total de ítems como la cantidad de compras (transacciones)
+    const statsByClient = salesSnapshot.docs.reduce((acc, doc) => {
       const sale = doc.data();
-      if (sale.clientId && Array.isArray(sale.items)) {
-        const totalItems = sale.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-        acc[sale.clientId] = (acc[sale.clientId] || 0) + totalItems;
+      if (sale.clientId) {
+        if (!acc[sale.clientId]) {
+          acc[sale.clientId] = { items: 0, purchases: 0 };
+        }
+        
+        // Sumamos 1 a la cantidad de compras (cada documento es 1 compra)
+        acc[sale.clientId].purchases += 1;
+
+        // Sumamos la cantidad de ítems dentro de la compra
+        if (Array.isArray(sale.items)) {
+          const totalItems = sale.items.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+          acc[sale.clientId].items += totalItems;
+        }
       }
       return acc;
-    }, {} as { [key: string]: number });
+    }, {} as { [key: string]: { items: number, purchases: number } });
 
-    const clientsWithItemCount = clients.map(client => ({
+    const clientsWithStats = clients.map(client => ({
       ...client,
-      totalItemsPurchased: itemsByClient[(client as any).id] || 0
+      totalItemsPurchased: statsByClient[(client as any).id]?.items || 0,
+      purchaseCount: statsByClient[(client as any).id]?.purchases || 0 // <- Añadido para el frontend
     }));
 
     // Guardamos en caché
-    setClientsCache(clientsWithItemCount);
-    res.json(clientsWithItemCount);
+    setClientsCache(clientsWithStats);
+    res.json(clientsWithStats);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

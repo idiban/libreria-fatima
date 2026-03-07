@@ -77,7 +77,8 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+      {/* VISTA MÓVIL: Grilla de tarjetas original (se oculta en md) */}
+      <div className="grid md:hidden grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
         {loading ? (
           Array(10).fill(0).map((_, i) => (
             <div key={`loading-debtor-${i}`} className="bg-white rounded-[2rem] p-4 animate-pulse">
@@ -112,6 +113,48 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
               {client.name}
             </h3>
             <p className="text-red-500 font-black text-2xl mt-2">${formatPrice(client.totalDebt)}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* VISTA WEB: Lista estructurada nueva (se muestra a partir de md) */}
+      <div className="hidden md:flex flex-col gap-3">
+        {loading ? (
+          Array(5).fill(0).map((_, i) => (
+            <div key={`loading-debtor-web-${i}`} className="bg-white rounded-2xl p-4 animate-pulse flex items-center justify-between">
+              <div className="flex items-center gap-4 w-1/3">
+                <div className="w-12 h-12 bg-gray-100 rounded-full shrink-0" />
+                <div className="h-4 bg-gray-100 rounded-full w-full" />
+              </div>
+              <div className="h-5 bg-gray-100 rounded-full w-24" />
+            </div>
+          ))
+        ) : filteredClients.length === 0 ? (
+          <div className="text-center py-20">
+            <h3 className="text-2xl font-bold text-[var(--color-primary)]">¡Felicitaciones!</h3>
+            <p className="text-gray-500 mt-2">No hay deudores pendientes.</p>
+          </div>
+        ) : filteredClients.map((client) => (
+          <motion.div
+            layout
+            key={`web-${client.id}`}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all group border border-transparent hover:border-[var(--color-primary)] cursor-pointer flex items-center justify-between"
+            onClick={() => setSelectedClient(client)}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xl font-black group-hover:scale-110 transition-transform shrink-0">
+                {client.name?.[0]?.toUpperCase() || ''}
+              </div>
+              <h3 className="font-bold text-[var(--color-primary)] text-lg">
+                {client.name}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <p className="text-gray-400 font-medium text-sm">Deuda:</p>
+              <p className="text-red-500 font-black text-xl">${formatPrice(client.totalDebt)}</p>
+            </div>
           </motion.div>
         ))}
       </div>

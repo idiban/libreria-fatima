@@ -59,6 +59,7 @@ export interface ClientRecord {
   rut?: string;
   totalDebt: number;
   creditBalance?: number;
+  purchaseCount?: number; // <-- ¡Añadido para que no de error!
   createdAt: any;
 }
 
