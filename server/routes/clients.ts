@@ -1,6 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, normalizeUsername } from "../utils.ts";
+import { clientsCache, setClientsCache, invalidateClientsCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -72,9 +73,15 @@ router.get("/", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
   try {
+    // Si ya tenemos los clientes en caché, los devolvemos (0 lecturas)
+    if (clientsCache) {
+      return res.json(clientsCache);
+    }
+
     const clientsSnapshot = await firestore.collection("clientes").get();
     const clients = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+    // Esta es la parte más costosa: lee TODAS las ventas solo para contar ítems
     const salesSnapshot = await firestore.collection("ventas").get();
     const itemsByClient = salesSnapshot.docs.reduce((acc, doc) => {
       const sale = doc.data();
@@ -90,6 +97,8 @@ router.get("/", async (req, res) => {
       totalItemsPurchased: itemsByClient[(client as any).id] || 0
     }));
 
+    // Guardamos en caché
+    setClientsCache(clientsWithItemCount);
     res.json(clientsWithItemCount);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -104,7 +113,10 @@ router.patch("/:id", async (req, res) => {
     const updates = req.body;
     if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
     await firestore.collection("clientes").doc(id).update(updates);
-    // --- NUEVO: LOG DE CLIENTE EDITADO ---
+    
+    // Invalidamos el caché ya que se editó un cliente
+    invalidateClientsCache();
+
     const userCookie = req.cookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
@@ -123,7 +135,6 @@ router.post("/:id/pay", async (req, res) => {
 
   try {
       const { id } = req.params;
-      // AQUÍ AGREGAMOS paymentMethod y clientRut
       const { amount, paymentMethod, clientRut } = req.body;
 
       if (!amount || typeof amount !== 'number' || amount <= 0) {
@@ -158,12 +169,15 @@ router.post("/:id/pay", async (req, res) => {
             clientId: id,
             clientName: clientNameLog,
             amount: amount,
-            paymentMethod: paymentMethod || [], // <-- SE GUARDA EL MÉTODO DE PAGO
-            clientRut: clientRut || "",         // <-- SE GUARDA EL RUT DEL PAGO
+            paymentMethod: paymentMethod || [], 
+            clientRut: clientRut || "",         
             timestamp: admin.firestore.FieldValue.serverTimestamp(),
             type: 'payment'
           });
       });
+
+      // Invalidamos el caché ya que el saldo del cliente cambió
+      invalidateClientsCache();
 
       const userCookie = req.cookies?.user;
       if (userCookie) {

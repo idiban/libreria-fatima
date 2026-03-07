@@ -1,6 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity } from "../utils.ts";
+import { invalidateBooksCache, invalidateClientsCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -9,7 +10,6 @@ router.post("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    // 1. AGREGADO: clientRut, manualDate, affectStock en la desestructuración
     const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount, manualDate, affectStock = true } = req.body;
     
     await firestore.runTransaction(async (transaction) => {
@@ -33,7 +33,6 @@ router.post("/", async (req, res) => {
       
       const clientDoc: any = clientId ? await transaction.get(clientRef) : null;
 
-      // SOLO ACTUALIZAR STOCK SI affectStock ES TRUE
       if (affectStock) {
         for (let i = 0; i < bookDocs.length; i++) {
           const currentStock = (bookDocs[i].data() as any)?.stock || 0;
@@ -47,10 +46,9 @@ router.post("/", async (req, res) => {
       const netChange = Number(total) - Number(amountPaid);
       const finalNetBalance = currentDebt - currentCredit + netChange;
 
-      // 2. AGREGADO: rut en el objeto de actualización del cliente
       const clientUpdate: any = {
         name: clientName,
-        rut: clientRut || '', // Guardamos el RUT en la colección clientes
+        rut: clientRut || '', 
         totalDebt: finalNetBalance > 0 ? finalNetBalance : 0,
         creditBalance: finalNetBalance < 0 ? Math.abs(finalNetBalance) : 0
       };
@@ -67,7 +65,6 @@ router.post("/", async (req, res) => {
       
       const saleRef = firestore.collection("ventas").doc();
       
-      // Lógica de fecha manual: Combinar fecha seleccionada con hora actual
       let saleTimestamp = admin.firestore.FieldValue.serverTimestamp();
       if (manualDate) {
         const d = new Date(manualDate);
@@ -80,7 +77,7 @@ router.post("/", async (req, res) => {
         items,
         clientId: finalClientId,
         clientName,
-        clientRut: clientRut || '', // 3. AGREGADO: rut en la colección ventas
+        clientRut: clientRut || '', 
         total: Number(total),
         amountPaid: Number(amountPaid),
         sellerId,
@@ -92,6 +89,10 @@ router.post("/", async (req, res) => {
         affectStock
       });
     });
+
+    // Invalidamos cachés ya que una venta afecta stock de libros y saldos de clientes
+    invalidateBooksCache();
+    invalidateClientsCache();
 
     await logActivity(sellerId, sellerName, "SALE", { clientName, total: Number(total), itemsCount: items.length });
     res.json({ success: true });
@@ -162,14 +163,12 @@ router.put("/:id", async (req, res) => {
       
       const stockChanges = new Map<string, number>();
       
-      // Si antes afectaba stock, devolvemos lo viejo
       if (oldAffectStock) {
         for (const oldItem of (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
           stockChanges.set(oldItem.bookId, (stockChanges.get(oldItem.bookId) || 0) + oldItem.quantity);
         }
       }
       
-      // Si ahora afecta stock, restamos lo nuevo
       if (affectStock) {
         for (const newItem of (items || []).filter((i: any) => !i.bookId.startsWith('custom_'))) {
           stockChanges.set(newItem.bookId, (stockChanges.get(newItem.bookId) || 0) - newItem.quantity);
@@ -198,7 +197,7 @@ router.put("/:id", async (req, res) => {
             totalDebt: finalBal > 0 ? finalBal : 0,
             creditBalance: finalBal < 0 ? Math.abs(finalBal) : 0,
             name: clientName,
-            rut: clientRut || '' // 5. AGREGADO: Actualizar rut en cliente existente
+            rut: clientRut || '' 
           });
         }
       } else {
@@ -215,7 +214,7 @@ router.put("/:id", async (req, res) => {
         const finalNewBal = (newClientDoc?.exists ? (newClientDoc.data().totalDebt - newClientDoc.data().creditBalance) : 0) + newDebt;
         const newClientUpdate = {
           name: clientName,
-          rut: clientRut || '', // 6. AGREGADO: rut para nuevo cliente o cambio de cliente
+          rut: clientRut || '', 
           totalDebt: finalNewBal > 0 ? finalNewBal : 0,
           creditBalance: finalNewBal < 0 ? Math.abs(finalNewBal) : 0
         };
@@ -227,7 +226,6 @@ router.put("/:id", async (req, res) => {
         }
       }
       
-      // Lógica de fecha manual para actualización
       let saleTimestamp = oldSaleData.timestamp;
       if (manualDate) {
         const d = new Date(manualDate);
@@ -240,7 +238,7 @@ router.put("/:id", async (req, res) => {
         items, 
         clientId: finalClientId, 
         clientName, 
-        clientRut: clientRut || '', // 7. AGREGADO: Actualizar rut en la venta
+        clientRut: clientRut || '', 
         total: Number(total), 
         amountPaid: Number(amountPaid), 
         sellerId, 
@@ -252,6 +250,10 @@ router.put("/:id", async (req, res) => {
         affectStock
       });
     });
+
+    // Invalidamos cachés ya que una edición de venta afecta stock y saldos
+    invalidateBooksCache();
+    invalidateClientsCache();
 
     const userCookie = req.cookies?.user;
     if (userCookie) {
@@ -322,6 +324,10 @@ router.delete("/:id", async (req, res) => {
       
       transaction.delete(saleRef);
     });
+
+    // Invalidamos cachés ya que una eliminación de venta afecta stock y saldos
+    invalidateBooksCache();
+    invalidateClientsCache();
 
     const userCookie = req.cookies?.user;
     if (userCookie && saleDataLog) {

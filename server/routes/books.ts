@@ -1,6 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, uploadImageToStorage } from "../utils.ts";
+import { booksCache, setBooksCache, invalidateBooksCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -9,18 +10,19 @@ router.get("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
   
   try {
-    const bucket = admin.storage().bucket();
+    // Si ya tenemos los libros en caché, los devolvemos de inmediato (0 lecturas de Firestore)
+    if (booksCache) {
+      return res.json(booksCache);
+    }
+
     const snapshot = await firestore.collection("libros").orderBy("titulo").get();
     
     const books = await Promise.all(snapshot.docs.map(async (doc) => {
       const data = doc.data();
 
-      // CORRECCIÓN: Apuntamos la URL al puente interno de tu backend para evadir CORS y Proxies
       const getRealUrl = (path: string) => {
         if (!path) return path;
         if (path.startsWith('http')) return path; 
-        
-        // Convertimos "portadas/imagen.jpg" a una ruta local segura
         return `/api/books/media/${path}`;
       };
 
@@ -39,6 +41,8 @@ router.get("/", async (req, res) => {
       };
     }));
 
+    // Guardamos en caché para futuras peticiones
+    setBooksCache(books);
     res.json(books);
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
@@ -80,6 +84,9 @@ router.post("/", async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
+    // Invalidamos el caché ya que hay un libro nuevo
+    invalidateBooksCache();
+
     const newDoc = await docRef.get();
     const data = newDoc.data();
     
@@ -111,12 +118,10 @@ router.patch("/:id", async (req, res) => {
       const userDoc = await firestore.collection("usuarios").doc(userSession.id).get();
       const perms = userDoc.data()?.permissions || {};
       
-      // Si está intentando actualizar stock
       if (updates.stock !== undefined && perms.canEditStock === false) {
         return res.status(403).json({ error: "No tienes permisos para editar stock." });
       }
       
-      // Si está intentando editar cualquier otra cosa (título, precio, etc)
       const isEditingDetails = Object.keys(updates).some(k => k !== 'stock' && k !== 'cover_url' && k !== 'contraportada_url');
       if (isEditingDetails && perms.canEditBook === false) {
         return res.status(403).json({ error: "No tienes permisos para editar detalles de libros." });
@@ -153,20 +158,16 @@ router.patch("/:id", async (req, res) => {
     if (updates.tomo !== undefined) firestoreUpdates.tomo = updates.tomo;
     if (updates.description !== undefined) firestoreUpdates.descripcion = updates.description;
     
-    // LÓGICA CORREGIDA PARA PORTADA
     if (updates.cover_url !== undefined) {
       if (updates.cover_url.startsWith('data:')) {
-        // Si viene un base64, borramos la vieja y subimos la nueva
         if (oldData?.portada_url) await deleteFile(oldData.portada_url);
         firestoreUpdates.portada_url = await uploadImageToStorage(updates.cover_url, 'portadas');
       } else if (updates.cover_url === '') {
-        // Si viene vacío, borramos la imagen del bucket y limpiamos el campo en la base de datos
         if (oldData?.portada_url) await deleteFile(oldData.portada_url);
         firestoreUpdates.portada_url = '';
       }
     }
 
-    // LÓGICA CORREGIDA PARA CONTRAPORTADA
     if (updates.contraportada_url !== undefined) {
       if (updates.contraportada_url.startsWith('data:')) {
         if (oldData?.contraportada_url) await deleteFile(oldData.contraportada_url);
@@ -179,6 +180,9 @@ router.patch("/:id", async (req, res) => {
 
     await firestore.collection("libros").doc(id).update(firestoreUpdates);
     
+    // Invalidamos el caché ya que hubo una modificación
+    invalidateBooksCache();
+
     if (updates.stock !== undefined) {
       const updatedBookDoc = await firestore.collection("libros").doc(id).get();
       const bookData = updatedBookDoc.data();
@@ -226,7 +230,6 @@ router.delete("/:id", async (req, res) => {
     const data = bookDoc.data();
     const bookTitle = data?.titulo;
 
-    // Utilizamos la misma función inteligente de borrado para el DELETE
     const deleteFile = async (pathOrUrl: string) => {
       if (!pathOrUrl) return;
       let pathToDelete = pathOrUrl;
@@ -247,6 +250,9 @@ router.delete("/:id", async (req, res) => {
     if (data?.contraportada_url) await deleteFile(data.contraportada_url);
 
     await firestore.collection("libros").doc(id).delete();
+
+    // Invalidamos el caché ya que se eliminó un libro
+    invalidateBooksCache();
 
     if (userCookie && bookTitle) {
       const user = JSON.parse(userCookie);

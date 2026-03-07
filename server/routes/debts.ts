@@ -1,6 +1,7 @@
 import express from "express";
 import { getFirestore } from "../firebase.ts";
 import { logActivity } from "../utils.ts"; 
+import { invalidateClientsCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -119,6 +120,9 @@ router.delete("/payment/:id", async (req, res) => {
 
       transaction.delete(paymentRef);
     });
+
+    // Invalidamos el caché ya que el saldo del cliente cambió
+    invalidateClientsCache();
 
     // --- NUEVO: GUARDAR EN EL LOG DE ACTIVIDAD ---
     const userCookie = req.cookies?.user;
