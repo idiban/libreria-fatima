@@ -74,6 +74,22 @@ export default function Catalog({
   const visibleBooks = filteredBooks.slice(0, displayLimit);
   const hasMore = filteredBooks.length > displayLimit;
 
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!hasMore) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setDisplayLimit(prev => prev + 20);
+      }
+    }, { threshold: 0.1 });
+
+    const sentinel = document.getElementById('infinite-scroll-sentinel');
+    if (sentinel) observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [hasMore, displayLimit]);
+
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* HEADER CON BUSCADOR CENTRADO Y NOTORIO */}
@@ -279,15 +295,10 @@ export default function Catalog({
             ))}
           </div>
 
-          {/* Botón Ver Más */}
+          {/* Sentinel para Infinite Scroll */}
           {hasMore && (
-            <div className="mt-12 flex justify-center">
-              <button
-                onClick={() => setDisplayLimit(prev => prev + 20)}
-                className="px-8 py-4 bg-white border-2 border-[var(--color-warm-surface)] text-[var(--color-primary)] font-black rounded-2xl shadow-md hover:bg-[var(--color-warm-bg)] hover:scale-105 transition-all uppercase tracking-widest text-xs"
-              >
-                Ver más libros ({filteredBooks.length - displayLimit} restantes)
-              </button>
+            <div id="infinite-scroll-sentinel" className="h-20 flex items-center justify-center mt-8">
+              <div className="w-8 h-8 border-4 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
             </div>
           )}
         </div>

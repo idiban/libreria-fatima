@@ -92,6 +92,22 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
   const visibleBooks = filteredBooks.slice(0, displayLimit);
   const hasMore = filteredBooks.length > displayLimit;
 
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!hasMore) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setDisplayLimit(prev => prev + 20);
+      }
+    }, { threshold: 0.1 });
+
+    const sentinel = document.getElementById('manager-scroll-sentinel');
+    if (sentinel) observer.observe(sentinel);
+
+    return () => observer.disconnect();
+  }, [hasMore, displayLimit]);
+
   const handleDeleteBook = async () => {
     if (!bookToDelete) return;
     setIsDeleting(true);
@@ -289,15 +305,10 @@ export default function BookManager({ books, currentUser, onEditBook, onAddBook,
         ))}
       </div>
 
-      {/* Botón Ver Más */}
+      {/* Sentinel para Infinite Scroll */}
       {hasMore && (
-        <div className="flex justify-center py-4">
-          <button
-            onClick={() => setDisplayLimit(prev => prev + 20)}
-            className="px-8 py-3 bg-white border border-[var(--color-warm-surface)] text-[var(--color-primary)] font-black rounded-2xl shadow-sm hover:bg-gray-50 transition-all text-sm"
-          >
-            Cargar más libros ({filteredBooks.length - displayLimit} restantes)
-          </button>
+        <div id="manager-scroll-sentinel" className="h-20 flex items-center justify-center py-4">
+          <div className="w-6 h-6 border-2 border-[var(--color-primary)]/20 border-t-[var(--color-primary)] rounded-full animate-spin" />
         </div>
       )}
 
