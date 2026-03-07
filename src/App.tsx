@@ -266,6 +266,7 @@ export default function App() {
   useEffect(() => {
     fetchBooks();
     checkAuth();
+    fetchClients();
 
     const handleStockUpdate = () => {
       fetchBooks();
