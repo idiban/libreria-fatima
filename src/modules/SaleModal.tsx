@@ -191,7 +191,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
         setManualDate(sale.timestamp ? new Date(sale.timestamp).toISOString().split('T')[0] : '');
         setAffectStock(sale.affectStock !== undefined ? sale.affectStock : true);
       } else {
-        setItems(initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url }] : []);
+        setItems(initialBook ? [{ bookId: initialBook.id, title: initialBook.title, price: initialBook.price, quantity: 1, stock: initialBook.stock, cover_url: initialBook.cover_url, tomo: initialBook.tomo } as any] : []);
         setClientName('');
         setClientId(null);
         setClientRut('');
@@ -287,7 +287,7 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
       if (existing) {
         return prev.map(i => i.bookId === book.id ? { ...i, quantity: i.quantity + 1 } : i);
       }
-      return [...prev, { bookId: book.id, title: book.title, price: book.price, quantity: 1, stock: book.stock, cover_url: book.cover_url }];
+      return [...prev, { bookId: book.id, title: book.title, price: book.price, quantity: 1, stock: book.stock, cover_url: book.cover_url, tomo: book.tomo } as any];
     });
     setBookSearchTerm('');
     setBookSuggestions([]);
@@ -515,7 +515,14 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                               )}
                             </div>
                             <div className="flex-1">
-                              <p className="font-bold text-xs sm:text-sm leading-tight text-gray-800">{b.title}</p>
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="font-bold text-xs sm:text-sm leading-tight text-gray-800">{b.title}</p>
+                                {b.tomo && (
+                                  <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[8px] px-1.5 py-0.5 rounded flex items-center">
+                                    {b.tomo}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium">{b.author}</p>
                             </div>
                             <span className="font-black text-[var(--color-primary)] text-xs shrink-0">${formatPrice(b.price)}</span>
@@ -604,7 +611,14 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
                             )}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-sm leading-tight pr-6 sm:pr-0">{item.title}</h4>
+                            <div className="flex items-center gap-2 pr-6 sm:pr-0">
+                              <h4 className="font-bold text-sm leading-tight">{item.title}</h4>
+                              {(item as any).tomo && (
+                                <span className="shrink-0 bg-amber-100 text-amber-700 font-black text-[8px] px-1.5 py-0.5 rounded flex items-center">
+                                  {(item as any).tomo}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
                               <p className="text-[var(--color-primary)] font-black text-xs">${formatPrice(item.price)}</p>
                               {!item.bookId.startsWith('custom_') && (
