@@ -43,28 +43,29 @@ export default function ActivityLogs() {
     }
 
     try {
-      const effectiveStartDate = startDate || getTodayDate();
-      const effectiveEndDate = endDate || getTodayDate();
+      const params = new URLSearchParams();
+      params.append('limit', '50');
+      
+      if (!isInitial && lastDocIdRef.current) {
+        params.append('lastId', lastDocIdRef.current);
+      }
 
-      const [startYear, startMonth, startDay] = effectiveStartDate.split('-').map(Number);
-      const startOfSelectedDay = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+      if (startDate) {
+        const [startYear, startMonth, startDay] = startDate.split('-').map(Number);
+        const startOfSelectedDay = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+        params.append('startDate', startOfSelectedDay.toISOString());
+      }
 
-      const [endYear, endMonth, endDay] = effectiveEndDate.split('-').map(Number);
-      const endOfSelectedDay = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
-
-      const params = new URLSearchParams({
-        limit: '50',
-        startDate: startOfSelectedDay.toISOString(),
-        endDate: endOfSelectedDay.toISOString(),
-        // Usamos la referencia segura del último ID, sin depender del array de logs
-        ...(!isInitial && lastDocIdRef.current && { lastId: lastDocIdRef.current })
-      });
+      if (endDate) {
+        const [endYear, endMonth, endDay] = endDate.split('-').map(Number);
+        const endOfSelectedDay = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+        params.append('endDate', endOfSelectedDay.toISOString());
+      }
 
       const res = await fetch(`/api/logs?${params.toString()}`);
       const data = await res.json();
 
       if (Array.isArray(data)) {
-        console.log(`Fetched ${data.length} logs. isInitial: ${isInitial}, hasMore: ${data.length === 50}`);
         if (data.length > 0) {
           // Guardamos el ID del último documento de forma segura
           lastDocIdRef.current = data[data.length - 1].id;
@@ -95,23 +96,26 @@ export default function ActivityLogs() {
   }, [fetchLogs]);
 
   const lastLogElementRef = useCallback((node: HTMLElement | null) => {
-    console.log('lastLogElementRef called with node:', node ? 'exists' : 'null');
     // Limpiamos siempre el observador anterior al cambiar de nodo
     if (observer.current) observer.current.disconnect();
     
+    if (!node) return;
+
     observer.current = new IntersectionObserver(entries => {
       // Evaluamos las condiciones en el instante exacto del scroll, no antes
       if (entries[0].isIntersecting) {
-        console.log('Last element intersecting. hasMore:', hasMore, 'searchTerm:', searchTerm, 'isFetching:', isFetchingRef.current);
-        if (hasMore && searchTerm.trim() === '' && !isFetchingRef.current) {
+        if (hasMore && !isFetchingRef.current) {
           fetchMoreLogs();
         }
       }
-    }, { rootMargin: '200px' });
+    }, { 
+      rootMargin: '600px', // Aumentamos el margen para ser más agresivos
+      threshold: 0.1 
+    });
     
-    if (node) observer.current.observe(node);
+    observer.current.observe(node);
   // Quitamos dependencias que causaban desconexiones erráticas
-  }, [hasMore, searchTerm, fetchMoreLogs]);
+  }, [hasMore, fetchMoreLogs]);
 
   useEffect(() => {
     fetchLogs(true);
@@ -322,7 +326,6 @@ export default function ActivityLogs() {
                 return (
                   <React.Fragment key={log.id}>
                     <tr 
-                      ref={index === filteredLogs.length - 1 ? lastLogElementRef : null}
                       onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                       className="hover:bg-[var(--color-warm-bg)] transition-colors group cursor-pointer"
                     >
@@ -381,12 +384,6 @@ export default function ActivityLogs() {
             </tbody>
           </table>
         </div>
-        
-        {loadingMore && (
-          <div className="p-8 flex items-center justify-center gap-3 text-gray-400 font-bold text-sm">
-            <Loader2 className="w-5 h-5 animate-spin" /> Cargando más registros...
-          </div>
-        )}
 
         {!loading && filteredLogs.length === 0 && (
            <div className="p-12 text-center text-gray-400 font-medium flex flex-col items-center justify-center">
@@ -408,7 +405,6 @@ export default function ActivityLogs() {
             return (
               <div 
                 key={`mob-${log.id}`} 
-                ref={index === filteredLogs.length - 1 ? lastLogElementRef : null}
                 onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
                 className="bg-white p-5 rounded-[2rem] shadow-sm border border-[var(--color-warm-surface)] space-y-4 cursor-pointer active:scale-[0.98] transition-all"
               >
@@ -444,13 +440,18 @@ export default function ActivityLogs() {
             <p className="text-gray-500 font-medium text-sm">No se encontraron registros.</p>
           </div>
         )}
-
-        {loadingMore && (
-          <div className="py-4 flex items-center justify-center gap-2 text-gray-400 font-bold text-xs">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando más...
-          </div>
-        )}
       </div>
+
+      {/* === CENTINELA Y LOADER UNIFICADOS === */}
+      {hasMore && <div ref={lastLogElementRef} className="h-4 w-full" />}
+
+      {loadingMore && (
+        <div className="py-4 md:p-8 flex items-center justify-center gap-2 md:gap-3 text-gray-400 font-bold text-xs md:text-sm">
+          <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" /> 
+          <span className="md:hidden">Cargando más...</span>
+          <span className="hidden md:inline">Cargando más registros...</span>
+        </div>
+      )}
     </div>
   );
 }

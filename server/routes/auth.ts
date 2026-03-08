@@ -53,6 +53,8 @@ router.post("/login", async (req, res) => {
     if (normalizedInput === "ignacio diban" && user.role !== "owner") {
       user.role = "owner";
       await firestore.collection("usuarios").doc(user.id).update({ role: "owner" });
+      const { invalidateUsersCache } = await import("../cache.ts");
+      invalidateUsersCache();
     }
 
     await logActivity(user.id, user.username, "LOGIN");

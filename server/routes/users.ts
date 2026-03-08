@@ -100,6 +100,7 @@ router.patch("/:id/password", checkAuth, async (req, res) => {
 
     const authUser = await admin.auth().getUserByEmail(email);
     await admin.auth().updateUser(authUser.uid, { password });
+    invalidateUsersCache();
 
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
@@ -167,6 +168,7 @@ router.post("/", checkAuth, async (req, res) => {
       });
     }
 
+    invalidateUsersCache();
     res.status(201).json({ id: authUser.uid, username, role, email });
   } catch (error) {
     const errorMsg = (error as any).message || "Error al crear usuario";
@@ -200,6 +202,7 @@ router.delete("/:id", checkAuth, async (req, res) => {
     }
 
     await firestore.collection("usuarios").doc(id).delete();
+    invalidateUsersCache();
 
     const userCookie = req.signedCookies.user;
     if (userCookie) {
@@ -248,6 +251,7 @@ router.patch("/:id", checkAuth, async (req, res) => {
     }
 
     await firestore.collection("usuarios").doc(id).update(updates);
+    invalidateUsersCache();
     
     const userCookie = req.signedCookies.user;
     if (userCookie) {
@@ -287,6 +291,7 @@ router.patch("/:id/role", checkAuth, async (req, res) => {
     if (userDoc.data()?.role === 'owner') return res.status(403).json({ error: "No se puede cambiar el rol del Propietario (Owner)" });
 
     await firestore.collection("usuarios").doc(id).update({ role });
+    invalidateUsersCache();
     
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
@@ -318,6 +323,7 @@ router.patch("/:id/permissions", checkAuth, async (req, res) => {
     await firestore.collection("usuarios").doc(id).update({
       [`permissions.${permission}`]: value
     });
+    invalidateUsersCache();
     
     const userCookie = req.signedCookies?.user;
     if (userCookie) {

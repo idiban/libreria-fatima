@@ -8,7 +8,7 @@ let booksCacheTime = 0;
 let clientsCacheTime = 0;
 let usersCacheTime = 0;
 
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+const CACHE_TTL = 3 * 60 * 60 * 1000; // 3 horas
 
 export const getBooksCache = () => {
   if (booksCache && (Date.now() - booksCacheTime < CACHE_TTL)) return booksCache;
