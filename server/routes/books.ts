@@ -1,7 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, uploadImageToStorage } from "../utils.ts";
-import { booksCache, setBooksCache, invalidateBooksCache } from "../cache.ts";
+import { getBooksCache, setBooksCache, updateBookInCache, invalidateBooksCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -10,9 +10,10 @@ router.get("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
   
   try {
-    // Si ya tenemos los libros en caché, los devolvemos de inmediato (0 lecturas de Firestore)
-    if (booksCache) {
-      return res.json(booksCache);
+    // Si ya tenemos los libros en caché y no han expirado, los devolvemos
+    const cachedBooks = getBooksCache();
+    if (cachedBooks) {
+      return res.json(cachedBooks);
     }
 
     const snapshot = await firestore.collection("libros").orderBy("titulo").get();
@@ -84,7 +85,7 @@ router.post("/", async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    // Invalidamos el caché ya que hay un libro nuevo
+    // Invalidamos el caché ya que hay un libro nuevo (o podríamos agregarlo al array)
     invalidateBooksCache();
 
     const newDoc = await docRef.get();
@@ -180,8 +181,8 @@ router.patch("/:id", async (req, res) => {
 
     await firestore.collection("libros").doc(id).update(firestoreUpdates);
     
-    // Invalidamos el caché ya que hubo una modificación
-    invalidateBooksCache();
+    // Actualizamos el caché de forma granular en lugar de invalidar todo
+    updateBookInCache(id, updates);
 
     if (userCookie) {
       const user = JSON.parse(userCookie);

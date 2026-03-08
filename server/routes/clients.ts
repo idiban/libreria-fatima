@@ -1,7 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, normalizeUsername } from "../utils.ts";
-import { clientsCache, setClientsCache, invalidateClientsCache } from "../cache.ts";
+import { getClientsCache, setClientsCache, updateClientInCache, invalidateClientsCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -53,6 +53,18 @@ router.get("/suggest", async (req, res) => {
     if (!q || typeof q !== "string") return res.json([]);
     const query = normalizeUsername(q);
     
+    // Intentamos usar el caché primero para evitar lecturas de Firestore
+    const cachedClients = getClientsCache();
+    if (cachedClients) {
+      const suggestions = cachedClients
+        .filter(client => {
+          const normalizedName = normalizeUsername(client.name || '');
+          return normalizedName.includes(query) || query.includes(normalizedName);
+        })
+        .slice(0, 5);
+      return res.json(suggestions);
+    }
+    
     const snapshot = await firestore.collection("clientes").get();
     
     const suggestions = snapshot.docs
@@ -73,9 +85,10 @@ router.get("/", async (req, res) => {
   const firestore = getFirestore();
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
   try {
-    // Si ya tenemos los clientes en caché, los devolvemos (0 lecturas)
-    if (clientsCache) {
-      return res.json(clientsCache);
+    // Si ya tenemos los clientes en caché y no han expirado, los devolvemos
+    const cachedClients = getClientsCache();
+    if (cachedClients) {
+      return res.json(cachedClients);
     }
 
     const clientsSnapshot = await firestore.collection("clientes").get();
@@ -130,8 +143,8 @@ router.patch("/:id", async (req, res) => {
     if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
     await firestore.collection("clientes").doc(id).update(updates);
     
-    // Invalidamos el caché ya que se editó un cliente
-    invalidateClientsCache();
+    // Actualizamos el caché de forma granular
+    updateClientInCache(id, updates);
 
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
@@ -200,7 +213,7 @@ router.post("/:id/pay", async (req, res) => {
           });
       });
 
-      // Invalidamos el caché ya que el saldo del cliente cambió
+      // Invalidamos el caché ya que el saldo del cliente cambió (o podríamos actualizarlo)
       invalidateClientsCache();
 
       const userCookie = req.signedCookies?.user;

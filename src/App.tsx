@@ -70,7 +70,14 @@ export default function App() {
     setSelectedBook(book);
     
     const state = { view, bookId: book?.id };
-    if (JSON.stringify(window.history.state) !== JSON.stringify(state)) {
+    const currentState = window.history.state;
+    
+    // Comprobación segura de igualdad para evitar circular structure error
+    const isSameState = currentState && 
+                        currentState.view === state.view && 
+                        currentState.bookId === state.bookId;
+
+    if (!isSameState) {
       window.history.pushState(state, '');
     }
   };
@@ -299,11 +306,15 @@ export default function App() {
     if (activeView === 'logs') fetchLogs();
   }, [activeView, fetchUsers, fetchSales, fetchClients, fetchLogs]);
 
-  const handleLogout = async (isExpired = false) => {
+  const handleLogout = async (isExpired: any = false) => {
+    // Si se llama desde un evento (onClick), isExpired será el objeto del evento.
+    // Solo procesamos el booleano si viene de la expiración automática.
+    const actualIsExpired = isExpired === true;
+    
     await fetch('/api/logout', { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isExpired })
+      body: JSON.stringify({ isExpired: actualIsExpired })
     });
     setCurrentUser(null);
     setActiveView('catalog');

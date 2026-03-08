@@ -30,22 +30,7 @@ export default function ActivityLogs() {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   
   const observer = useRef<IntersectionObserver | null>(null);
-  const lastLogElementRef = useCallback((node: HTMLElement | null) => {
-    // Limpiamos siempre el observador anterior al cambiar de nodo
-    if (observer.current) observer.current.disconnect();
-    
-    observer.current = new IntersectionObserver(entries => {
-      // Evaluamos las condiciones en el instante exacto del scroll, no antes
-      if (entries[0].isIntersecting && hasMore && searchTerm === '' && !isFetchingRef.current) {
-        fetchMoreLogs();
-      }
-    });
-    
-    if (node) observer.current.observe(node);
-  // Quitamos dependencias que causaban desconexiones erráticas
-  }, [hasMore, searchTerm]);
-
-  const fetchLogs = async (isInitial = true) => {
+  const fetchLogs = useCallback(async (isInitial = true) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
@@ -79,6 +64,7 @@ export default function ActivityLogs() {
       const data = await res.json();
 
       if (Array.isArray(data)) {
+        console.log(`Fetched ${data.length} logs. isInitial: ${isInitial}, hasMore: ${data.length === 50}`);
         if (data.length > 0) {
           // Guardamos el ID del último documento de forma segura
           lastDocIdRef.current = data[data.length - 1].id;
@@ -102,15 +88,34 @@ export default function ActivityLogs() {
       setLoadingMore(false);
       isFetchingRef.current = false;
     }
-  };
+  }, [startDate, endDate]);
 
-  const fetchMoreLogs = () => {
+  const fetchMoreLogs = useCallback(() => {
     fetchLogs(false);
-  };
+  }, [fetchLogs]);
+
+  const lastLogElementRef = useCallback((node: HTMLElement | null) => {
+    console.log('lastLogElementRef called with node:', node ? 'exists' : 'null');
+    // Limpiamos siempre el observador anterior al cambiar de nodo
+    if (observer.current) observer.current.disconnect();
+    
+    observer.current = new IntersectionObserver(entries => {
+      // Evaluamos las condiciones en el instante exacto del scroll, no antes
+      if (entries[0].isIntersecting) {
+        console.log('Last element intersecting. hasMore:', hasMore, 'searchTerm:', searchTerm, 'isFetching:', isFetchingRef.current);
+        if (hasMore && searchTerm.trim() === '' && !isFetchingRef.current) {
+          fetchMoreLogs();
+        }
+      }
+    }, { rootMargin: '200px' });
+    
+    if (node) observer.current.observe(node);
+  // Quitamos dependencias que causaban desconexiones erráticas
+  }, [hasMore, searchTerm, fetchMoreLogs]);
 
   useEffect(() => {
     fetchLogs(true);
-  }, [startDate, endDate]);
+  }, [fetchLogs]);
 
   // TRADUCTOR DE ACCIONES A ESPAÑOL AMIGABLE
   const translateAction = (action: string) => {

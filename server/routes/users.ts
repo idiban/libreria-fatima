@@ -1,7 +1,8 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity, normalizeUsername, generateEmail } from "../utils.ts";
-import { checkAuth } from "../middleware.ts"; // <-- IMPORTACIÓN DE SEGURIDAD AGREGADA
+import { checkAuth } from "../middleware.ts";
+import { getUsersCache, setUsersCache, invalidateUsersCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -15,6 +16,15 @@ router.get("/suggest", async (req, res) => {
     if (!q || typeof q !== "string") return res.json([]);
     
     const query = normalizeUsername(q);
+    
+    // Intentamos usar el caché primero
+    const cachedUsers = getUsersCache();
+    if (cachedUsers) {
+      const suggestions = cachedUsers
+        .filter(user => (user.username_lowercase || '').includes(query))
+        .slice(0, 5);
+      return res.json(suggestions);
+    }
     
     const snapshot = await firestore.collection("usuarios").get();
       
@@ -40,8 +50,16 @@ router.get("/", async (req, res) => {
   if (!firestore) return res.status(500).json({ error: "Firebase not configured" });
 
   try {
-    const snapshot = await firestore.collection("usuarios").get();
-    let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+    let users: any[] = [];
+    const cachedUsers = getUsersCache();
+    
+    if (cachedUsers) {
+      users = [...cachedUsers];
+    } else {
+      const snapshot = await firestore.collection("usuarios").get();
+      users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
+      setUsersCache(users);
+    }
 
     const userCookie = req.signedCookies?.user;
     if (userCookie) {

@@ -448,7 +448,7 @@ function InlineStockInput({ book, textClass = "text-lg", disabled = false }: { b
       } finally {
         setIsUpdating(false);
       }
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [stock, book.stock, book.id]);

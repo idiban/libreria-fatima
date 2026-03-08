@@ -21,9 +21,15 @@ export default function DebtorsList({ books, clients: allClients, loading, onRef
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
+  const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
   // Mejora 2: Ordenar de mayor a menor deuda (.sort)
-  const filteredClients = allClients
-    .filter(client => client.totalDebt > 0 && client.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+  const debtors = allClients.filter(client => client.totalDebt > 0);
+  
+  const filteredClients = debtors
+    .filter(client => normalizeText(client.name || '').includes(normalizeText(searchTerm)))
     .sort((a, b) => b.totalDebt - a.totalDebt);
 
   // Mejora 1: Cálculo del total de deudas
@@ -66,10 +72,14 @@ export default function DebtorsList({ books, clients: allClients, loading, onRef
               <div className="h-3 bg-gray-100 rounded-full w-1/2 mx-auto" />
             </div>
           ))
-        ) : filteredClients.length === 0 ? (
+        ) : debtors.length === 0 ? (
           <div className="col-span-full text-center py-20">
             <h3 className="text-2xl font-bold text-[var(--color-primary)]">¡Felicitaciones!</h3>
             <p className="text-gray-500 mt-2">No hay deudores pendientes.</p>
+          </div>
+        ) : filteredClients.length === 0 ? (
+          <div className="col-span-full text-center py-20">
+            <p className="text-gray-500 mt-2">No se encontraron deudores para "{searchTerm}".</p>
           </div>
         ) : filteredClients.map((client) => (
           <motion.div
@@ -108,10 +118,14 @@ export default function DebtorsList({ books, clients: allClients, loading, onRef
               <div className="h-5 bg-gray-100 rounded-full w-24" />
             </div>
           ))
-        ) : filteredClients.length === 0 ? (
+        ) : debtors.length === 0 ? (
           <div className="text-center py-20">
             <h3 className="text-2xl font-bold text-[var(--color-primary)]">¡Felicitaciones!</h3>
             <p className="text-gray-500 mt-2">No hay deudores pendientes.</p>
+          </div>
+        ) : filteredClients.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-gray-500 mt-2">No se encontraron deudores para "{searchTerm}".</p>
           </div>
         ) : filteredClients.map((client) => (
           <motion.div

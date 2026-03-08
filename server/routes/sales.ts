@@ -1,7 +1,7 @@
 import express from "express";
 import { getFirestore, admin } from "../firebase.ts";
 import { logActivity } from "../utils.ts";
-import { invalidateBooksCache, invalidateClientsCache } from "../cache.ts";
+import { updateBookInCache, invalidateBooksCache, invalidateClientsCache } from "../cache.ts";
 
 const router = express.Router();
 
@@ -38,7 +38,10 @@ router.post("/", async (req, res) => {
       if (affectStock) {
         for (let i = 0; i < bookDocs.length; i++) {
           const currentStock = (bookDocs[i].data() as any)?.stock || 0;
-          transaction.update(bookRefs[i], { stock: Math.max(0, currentStock - bookItems[i].quantity) });
+          const newStock = Math.max(0, currentStock - bookItems[i].quantity);
+          transaction.update(bookRefs[i], { stock: newStock });
+          // Actualizamos el caché localmente
+          updateBookInCache(bookItems[i].bookId, { stock: newStock });
         }
       }
 
