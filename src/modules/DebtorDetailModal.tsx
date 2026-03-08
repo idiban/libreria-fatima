@@ -403,7 +403,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                           onClick={() => setAmountToPay(client.totalDebt)}
                           className="mt-2 w-full py-2 bg-[var(--color-primary)] text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-[var(--color-primary)]/20 hover:scale-[1.02] active:scale-95 transition-all"
                         >
-                          Completar Monto
+                          Va a pagar todo
                         </button>
                       </div>
 
@@ -412,13 +412,13 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
                         <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl border-2 transition-all ${paymentMethodError ? 'border-red-400 bg-red-50' : 'border-transparent'}`}>
                           <button 
                             onClick={() => togglePaymentMethod('efectivo')}
-                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('efectivo') ? 'bg-emerald-500 text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('efectivo') ? 'bg-[var(--color-primary)] text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
                           >
                             <Wallet className="w-4 h-4" /> Efectivo
                           </button>
                           <button 
                             onClick={() => togglePaymentMethod('transferencia')}
-                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('transferencia') ? 'bg-emerald-500 text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+                            className={`flex flex-col items-center justify-center gap-1 p-2 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-all border ${paymentMethods.includes('transferencia') ? 'bg-[var(--color-primary)] text-white border-transparent shadow-md' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
                           >
                             <Landmark className="w-4 h-4" /> Transf.
                           </button>
@@ -490,7 +490,7 @@ export default function DebtorDetailModal({ client, onClose, onPaymentSuccess, b
               <button
                 onClick={handlePayment}
                 disabled={isPaying || amountToPay <= 0 || (paymentMethods.includes('transferencia') && clientRut !== '' && isRutInvalid)}
-                className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-2xl font-black text-sm sm:text-xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50"
+                className="flex-[2] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white py-3 sm:py-4 px-4 sm:px-6 rounded-2xl font-black text-sm sm:text-xl shadow-xl shadow-[var(--color-primary)]/20 transition-all flex items-center justify-center gap-2 sm:gap-3 active:scale-95 disabled:opacity-50"
               >
                 {isPaying ? (
                   <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
