@@ -87,7 +87,7 @@ router.patch("/:id/password", checkAuth, async (req, res) => {
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
-        details: "Cambió la contraseña a otro usuario" 
+        details: `Cambió la contraseña del usuario "${userDoc.data()?.username}"` 
       });
     }
 
@@ -145,9 +145,7 @@ router.post("/", checkAuth, async (req, res) => {
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_CREATE", {
-        newUserId: authUser.uid,
-        newUsername: username,
-        role: role || 'vendedor'
+        details: `Creó el usuario "${username}" con el rol "${role || 'vendedor'}"`
       });
     }
 
@@ -189,8 +187,7 @@ router.delete("/:id", checkAuth, async (req, res) => {
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_DELETE", {
-        deletedUserId: id,
-        deletedUsername: userData?.username
+        details: `Eliminó al usuario "${userData?.username}"`
       });
     }
 
@@ -237,9 +234,12 @@ router.patch("/:id", checkAuth, async (req, res) => {
     const userCookie = req.signedCookies.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
+      const changes: string[] = [];
+      if (updates.username) changes.push(`Nombre: ${userDoc.data()?.username} -> ${updates.username}`);
+      if (updates.role) changes.push(`Rol: ${userDoc.data()?.role} -> ${updates.role}`);
+      
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", {
-        updatedUserId: id,
-        updates
+        details: `Modificó al usuario "${userDoc.data()?.username}": ${changes.join(" • ")}`
       });
     }
 
@@ -273,7 +273,9 @@ router.patch("/:id/role", checkAuth, async (req, res) => {
     const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
-      await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { role: role });
+      await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
+        details: `Cambió el rol del usuario "${userDoc.data()?.username}" a "${role}"` 
+      });
     }
 
     res.json({ success: true });
@@ -303,7 +305,7 @@ router.patch("/:id/permissions", checkAuth, async (req, res) => {
     if (userCookie) {
       const adminUser = JSON.parse(userCookie);
       await logActivity(adminUser.id, adminUser.username, "USER_UPDATE", { 
-        details: `Permiso ${permission} cambiado a ${value} para el usuario` 
+        details: `Permiso "${permission}" cambiado a ${value ? 'Activado' : 'Desactivado'} para el usuario "${userDoc.data()?.username}"` 
       });
     }
 

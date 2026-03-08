@@ -107,8 +107,7 @@ router.post("/", async (req, res) => {
     await logActivity(sellerId, sellerName, "SALE", { 
       clientName, 
       total: Number(total), 
-      itemsCount: items.length,
-      items: items.map((i: any) => ({ title: i.title, quantity: i.quantity }))
+      itemsCount: items.length
     });
     res.json({ success: true });
   } catch (error) {
@@ -137,11 +136,12 @@ router.put("/:id", async (req, res) => {
     // 4. AGREGADO: clientRut, manualDate, affectStock en la desestructuración del PUT
     const { items, clientId, clientName, clientRut, amountPaid, total, sellerId, sellerName, paymentMethod, notes, discount, manualDate, affectStock = true } = req.body;
     
+    let oldSaleData: any = null;
     await firestore.runTransaction(async (transaction) => {
       const saleRef = firestore.collection("ventas").doc(id);
       const saleDoc = await transaction.get(saleRef);
       if (!saleDoc.exists) throw new Error("Venta no encontrada");
-      const oldSaleData = saleDoc.data()!;
+      oldSaleData = saleDoc.data()!;
       const oldAffectStock = oldSaleData.affectStock !== undefined ? oldSaleData.affectStock : true;
       
       const oldBookIds = (oldSaleData.items || []).filter((i: any) => !i.bookId.startsWith('custom_')).map((i: any) => i.bookId);
@@ -280,12 +280,23 @@ router.put("/:id", async (req, res) => {
     invalidateBooksCache();
     invalidateClientsCache();
 
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
+      
+      const formatPrice = (price: number) => {
+        return Number(price || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      };
+
+      const changes: string[] = [];
+      if (clientName !== oldSaleData.clientName) changes.push(`Cliente: ${oldSaleData.clientName} -> ${clientName}`);
+      if (Number(total) !== Number(oldSaleData.total)) changes.push(`Total: $${formatPrice(oldSaleData.total)} -> $${formatPrice(total)}`);
+      if (Number(amountPaid) !== Number(oldSaleData.amountPaid)) changes.push(`Pagado: $${formatPrice(oldSaleData.amountPaid)} -> $${formatPrice(amountPaid)}`);
+      if (items.length !== oldSaleData.items.length) changes.push(`Cantidad de items: ${oldSaleData.items.length} -> ${items.length}`);
+      
       await logActivity(user.id, user.username, "SALE_UPDATE", { 
         clientName: clientName, 
-        total: Number(total) 
+        details: changes.length > 0 ? `Modificó venta: ${changes.join(" • ")}` : "Editó detalles de la venta"
       });
     }
 
@@ -361,13 +372,15 @@ router.delete("/:id", async (req, res) => {
     invalidateBooksCache();
     invalidateClientsCache();
 
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user;
     if (userCookie && saleDataLog) {
         try {
             const user = JSON.parse(userCookie);
+            const formatPrice = (price: number) => {
+              return Number(price || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            };
             await logActivity(user.id, user.username, "SALE_DELETE", {
-                clientName: saleDataLog.clientName || 'Desconocido',
-                total: saleDataLog.total || 0
+                details: `Eliminó la venta del cliente ${saleDataLog.clientName || 'Desconocido'} por un total de $${formatPrice(saleDataLog.total || 0)}`
             });
         } catch (e) {
             console.error("Error parsing user cookie for logging:", e);

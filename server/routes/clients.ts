@@ -124,16 +124,27 @@ router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+    const clientDoc = await firestore.collection("clientes").doc(id).get();
+    const oldData = clientDoc.data();
+    
     if (updates.name) updates.name_lowercase = updates.name.toLowerCase();
     await firestore.collection("clientes").doc(id).update(updates);
     
     // Invalidamos el caché ya que se editó un cliente
     invalidateClientsCache();
 
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user;
     if (userCookie) {
       const user = JSON.parse(userCookie);
-      await logActivity(user.id, user.username, "CLIENT_UPDATE", { clientName: updates.name });
+      if (updates.name && updates.name !== oldData?.name) {
+        await logActivity(user.id, user.username, "CLIENT_UPDATE", { 
+          details: `Modificó el nombre del cliente "${oldData?.name}" a "${updates.name}"` 
+        });
+      } else {
+        await logActivity(user.id, user.username, "CLIENT_UPDATE", { 
+          details: `Editó detalles del cliente "${oldData?.name || updates.name}"` 
+        });
+      }
     }
 
     res.json({ success: true });
@@ -192,13 +203,12 @@ router.post("/:id/pay", async (req, res) => {
       // Invalidamos el caché ya que el saldo del cliente cambió
       invalidateClientsCache();
 
-      const userCookie = req.cookies?.user;
+      const userCookie = req.signedCookies?.user;
       if (userCookie) {
           try {
               const user = JSON.parse(userCookie);
               await logActivity(user.id, user.username, "DEBT_PAYMENT", {
-                  clientName: clientNameLog, 
-                  amountPaid: amount
+                  details: `El cliente ${clientNameLog} abonó $${amount.toLocaleString('es-CL')} de su deuda`
               });
           } catch (e) {
               console.error("Error parsing user cookie for logging:", e);

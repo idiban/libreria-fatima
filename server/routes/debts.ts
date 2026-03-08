@@ -125,13 +125,12 @@ router.delete("/payment/:id", async (req, res) => {
     invalidateClientsCache();
 
     // --- NUEVO: GUARDAR EN EL LOG DE ACTIVIDAD ---
-    const userCookie = req.cookies?.user;
+    const userCookie = req.signedCookies?.user;
     if (userCookie && paymentDataLog) {
         try {
             const user = JSON.parse(userCookie);
             await logActivity(user.id, user.username, "PAYMENT_DELETE", {
-                clientName: paymentDataLog.clientName || 'Desconocido',
-                amountPaid: paymentDataLog.amount || 0
+                details: `Eliminó el pago de $${(paymentDataLog.amount || 0).toLocaleString('es-CL')} del cliente ${paymentDataLog.clientName || 'Desconocido'}`
             });
         } catch (e) {
             console.error("Error parsing user cookie for logging:", e);

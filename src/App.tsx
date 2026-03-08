@@ -126,7 +126,7 @@ export default function App() {
         const secondsLeft = Math.floor((expireTime - now) / 1000);
 
         if (secondsLeft <= 0) {
-          handleLogout();
+          handleLogout(true);
         } else {
           setTimeLeft(secondsLeft);
         }
@@ -168,7 +168,7 @@ export default function App() {
     };
   }, [currentUser, resetTimer]);
 
-  const fetchBooks = useCallback(async () => {
+  const fetchBooks = useCallback(async (force = false) => {
     try {
       const response = await fetch('/api/books');
       if (response.status === 401) {
@@ -180,6 +180,10 @@ export default function App() {
         const data = await response.json();
         if (Array.isArray(data)) {
           setBooks(data);
+          if (force) {
+            fetchSales(true);
+            fetchClients(true);
+          }
         } else {
           console.error("Failed to fetch books:", data);
           setBooks([]);
@@ -253,9 +257,13 @@ export default function App() {
       if (Array.isArray(data)) {
         setSales(data);
         setHasFetchedSales(true);
+        // Si refrescamos ventas, las deudas de los clientes cambian
+        if (force) {
+          fetchClients(true);
+        }
       }
     } catch (e) {}
-  }, [hasFetchedSales]);
+  }, [hasFetchedSales, fetchClients]);
 
   const fetchLogs = useCallback(async (force = false) => {
     if (hasFetchedLogs && !force) return;
@@ -291,8 +299,12 @@ export default function App() {
     if (activeView === 'logs') fetchLogs();
   }, [activeView, fetchUsers, fetchSales, fetchClients, fetchLogs]);
 
-  const handleLogout = async () => {
-    await fetch('/api/logout', { method: 'POST' });
+  const handleLogout = async (isExpired = false) => {
+    await fetch('/api/logout', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isExpired })
+    });
     setCurrentUser(null);
     setActiveView('catalog');
     localStorage.removeItem('sessionExpire'); // Limpiar fecha al cerrar sesión
@@ -385,7 +397,7 @@ export default function App() {
       case 'clients':
         return <ClientsList clients={clients} loading={!hasFetchedClients} onRefresh={() => fetchClients(true)} />;
       case 'debtors':
-        return <DebtorsList books={books} />;
+        return <DebtorsList books={books} clients={clients} loading={!hasFetchedClients} onRefresh={() => fetchClients(true)} />;
       default:
         return <Catalog books={books} loading={loading} searchTerm={searchTerm} setSearchTerm={setSearchTerm} currentUser={currentUser} onEditBook={() => {}} onAddBook={() => {}} onSaleClick={() => {}} onBookClick={() => {}} />;
     }

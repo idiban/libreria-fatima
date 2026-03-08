@@ -183,15 +183,29 @@ router.patch("/:id", async (req, res) => {
     // Invalidamos el caché ya que hubo una modificación
     invalidateBooksCache();
 
-    if (updates.stock !== undefined) {
-      const updatedBookDoc = await firestore.collection("libros").doc(id).get();
-      const bookData = updatedBookDoc.data();
-      if (userCookie) {
-        const user = JSON.parse(userCookie);
+    if (userCookie) {
+      const user = JSON.parse(userCookie);
+      const changes: string[] = [];
+      
+      const formatPrice = (price: number) => {
+        return Number(price).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      };
+
+      if (updates.title !== undefined && updates.title !== oldData?.titulo) changes.push(`Título: ${oldData?.titulo} -> ${updates.title}`);
+      if (updates.author !== undefined && updates.author !== oldData?.autor) changes.push(`Autor: ${oldData?.autor} -> ${updates.author}`);
+      if (updates.price !== undefined && Number(updates.price) !== Number(oldData?.precio)) changes.push(`Precio: $${formatPrice(oldData?.precio)} -> $${formatPrice(updates.price)}`);
+      if (updates.category !== undefined && updates.category !== oldData?.categoria) changes.push(`Categoría: ${oldData?.categoria || 'Sin categoría'} -> ${updates.category}`);
+      if (updates.tomo !== undefined && updates.tomo !== (oldData?.tomo || "")) changes.push(`Tomo: ${oldData?.tomo || 'N/A'} -> ${updates.tomo || 'N/A'}`);
+      
+      if (updates.stock !== undefined && Number(updates.stock) !== Number(oldData?.stock)) {
         await logActivity(user.id, user.username, "STOCK_UPDATE", {
-          bookId: id,
-          bookTitle: bookData?.titulo,
-          newStock: updates.stock
+          details: `Modificó el stock de "${oldData?.titulo}" de ${formatPrice(oldData?.stock)} a ${formatPrice(updates.stock)}`
+        });
+      }
+      
+      if (changes.length > 0) {
+        await logActivity(user.id, user.username, "BOOK_UPDATE", {
+          details: `Se editó el libro "${oldData?.titulo}": ${changes.join(" • ")}`
         });
       }
     }

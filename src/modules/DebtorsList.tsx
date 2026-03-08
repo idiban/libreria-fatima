@@ -6,49 +6,28 @@ import { ClientRecord, BookItem } from '../types';
 // Suponiendo que tienes un modal para el detalle de la deuda
 import DebtorDetailModal from './DebtorDetailModal';
 
-export default function DebtorsList({ books }: { books: BookItem[] }) {
-  const [clients, setClients] = useState<ClientRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DebtorsListProps {
+  books: BookItem[];
+  clients: ClientRecord[];
+  loading: boolean;
+  onRefresh: () => void;
+}
+
+export default function DebtorsList({ books, clients: allClients, loading, onRefresh }: DebtorsListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientRecord | null>(null);
-
-  const fetchClients = async () => {
-    try {
-      const res = await fetch('/api/clients');
-      const contentType = res.headers.get('content-type');
-      if (contentType && contentType.indexOf('application/json') !== -1) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setClients(data.filter(c => c.totalDebt > 0));
-        } else {
-          setClients([]);
-        }
-      } else {
-        // No se puede hacer logout desde aquí, pero se puede limpiar la lista
-        setClients([]);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchClients();
-  }, []);
 
   const formatPrice = (price: number) => {
     return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   };
 
   // Mejora 2: Ordenar de mayor a menor deuda (.sort)
-  const filteredClients = clients
-    .filter(client => client.name?.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredClients = allClients
+    .filter(client => client.totalDebt > 0 && client.name?.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => b.totalDebt - a.totalDebt);
 
   // Mejora 1: Cálculo del total de deudas
-  const totalDebtSum = clients.reduce((acc, client) => acc + client.totalDebt, 0);
+  const totalDebtSum = allClients.reduce((acc, client) => acc + client.totalDebt, 0);
 
   return (
     <div className="space-y-8">
@@ -166,7 +145,7 @@ export default function DebtorsList({ books }: { books: BookItem[] }) {
           onClose={() => setSelectedClient(null)}
           onPaymentSuccess={() => { // Refetch clients or update locally
             setSelectedClient(null);
-            fetchClients(); 
+            onRefresh(); 
           }}
         />
       )}

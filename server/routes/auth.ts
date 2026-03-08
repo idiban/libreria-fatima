@@ -88,10 +88,11 @@ router.post("/refresh-session", (req, res) => {
 
 router.post("/logout", async (req, res) => {
   const userCookie = req.signedCookies.user;
+  const { isExpired } = req.body || {};
   if (userCookie) {
     try {
       const user = JSON.parse(userCookie);
-      await logActivity(user.id, user.username, "LOGOUT");
+      await logActivity(user.id, user.username, isExpired ? "SESSION_EXPIRED" : "LOGOUT");
     } catch (e) {}
   }
   res.clearCookie("user");
