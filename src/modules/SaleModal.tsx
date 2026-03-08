@@ -118,10 +118,10 @@ export default function SaleModal({ isOpen, onClose, sale, initialBook, currentU
 
   // NUEVA FUNCIÓN: Formateo estricto para el nombre del cliente
   const formatClientName = (str: string) => {
-    // Solo permite letras (incluyendo acentos y ñ) y espacios
-    const onlyLetters = str.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s]/g, '');
+    // Permite letras, espacios y los caracteres de tilde sueltos (´, ¨, ') para que el teclado funcione al tipear
+    const onlyLetters = str.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ\s'´¨]/g, '');
     
-    // Convierte a Title Case (Primera mayúscula, el resto forzado a minúscula)
+    // Convierte a Title Case manteniendo los acentos correctos en la primera letra
     return onlyLetters.split(' ').map(word => {
       if (!word) return '';
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
